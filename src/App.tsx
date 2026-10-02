@@ -25,6 +25,40 @@ type ApiEntry = {
 }
 
 const storageKey = 'ipa-sound-lab-vocabulary-v1'
+const starterSeedKey = 'ipa-sound-lab-photo-starter-v1'
+const starterDate = new Date('2026-10-02T00:00:00Z').getTime()
+function starter(term: string, meaning: string, parts: string[], uk: string, us: string, example: string, forms: Form[] = []): VocabEntry {
+  return {
+    term, meaning, translations: [meaning], parts,
+    uk: { ipa: uk, audio: '' }, us: { ipa: us, audio: '' }, forms,
+    examples: [{ text: example, author: '', url: '' }], sourceUrl: '', addedAt: starterDate,
+  }
+}
+const starterEntries: VocabEntry[] = [
+  starter('financial', '金融的', ['adjective'], '/faɪˈnænʃəl/', '/ˌfaɪˈnænʃəl/', 'She asked for financial advice.'),
+  starter('finance', '金融', ['noun'], '/ˈfaɪnæns/', '/ˈfaɪnæns/', 'He works in finance.'),
+  starter('credit union', '信用合作社', ['noun'], '/ˈkredɪt ˈjuːniən/', '/ˈkredɪt ˈjuːnjən/', 'She opened an account at a credit union.', [{ label: '复数', value: 'credit unions' }]),
+  starter('credit card', '信用卡', ['noun'], '/ˈkredɪt kɑːd/', '/ˈkredɪt kɑrd/', 'I paid for the ticket with a credit card.', [{ label: '复数', value: 'credit cards' }]),
+  starter('check', '支票', ['noun'], '/tʃek/', '/tʃek/', 'He wrote a check for the rent.', [{ label: '复数', value: 'checks' }]),
+  starter('means', '方法', ['noun'], '/miːnz/', '/miːnz/', 'We need to find a means of solving the problem.', [{ label: '单数与复数', value: 'means' }]),
+  starter('secure', '安全的', ['adjective'], '/sɪˈkjʊə/', '/sɪˈkjʊr/', 'Use a secure password for your account.'),
+  starter('services', '服务', ['noun'], '/ˈsɜːvɪsɪz/', '/ˈsɝvɪsɪz/', 'The bank offers online services.', [{ label: '单数', value: 'service' }, { label: '复数', value: 'services' }]),
+  starter('cost', '花费', ['verb', 'noun'], '/kɒst/', '/kɑst/', 'The repair may cost more than expected.', [{ label: '复数', value: 'costs' }, { label: '过去式', value: 'cost' }, { label: '过去分词', value: 'cost' }, { label: '现在分词', value: 'costing' }, { label: '第三人称单数', value: 'costs' }]),
+  starter('costs', '成本', ['noun'], '/kɒsts/', '/kɑsts/', 'The company is trying to reduce costs.', [{ label: '单数', value: 'cost' }, { label: '复数', value: 'costs' }]),
+  starter('members', '成员', ['noun'], '/ˈmembəz/', '/ˈmembɚz/', 'All members can vote at the meeting.', [{ label: '单数', value: 'member' }, { label: '复数', value: 'members' }]),
+  starter('transfer', '转移', ['verb'], '/trænsˈfɜː/', '/trænsˈfɝ/', 'You can transfer money between accounts.', [{ label: '过去式', value: 'transferred' }, { label: '过去分词', value: 'transferred' }, { label: '现在分词', value: 'transferring' }, { label: '第三人称单数', value: 'transfers' }]),
+  starter('accounts', '账户', ['noun'], '/əˈkaʊnts/', '/əˈkaʊnts/', 'She checks her accounts every morning.', [{ label: '单数', value: 'account' }, { label: '复数', value: 'accounts' }]),
+  starter('countries', '国家', ['noun'], '/ˈkʌntriz/', '/ˈkʌntriz/', 'People from many countries attended the event.', [{ label: '单数', value: 'country' }, { label: '复数', value: 'countries' }]),
+  starter('deposit', '汇款', ['noun', 'verb'], '/dɪˈpɒzɪt/', '/dɪˈpɑzɪt/', 'I made a deposit at the bank.', [{ label: '复数', value: 'deposits' }, { label: '过去式', value: 'deposited' }, { label: '过去分词', value: 'deposited' }, { label: '现在分词', value: 'depositing' }, { label: '第三人称单数', value: 'deposits' }]),
+  starter('direct', '直接', ['adjective', 'verb'], '/dɪˈrekt/', '/dəˈrekt/', 'There is a direct train to the city.', [{ label: '过去式', value: 'directed' }, { label: '过去分词', value: 'directed' }, { label: '现在分词', value: 'directing' }, { label: '第三人称单数', value: 'directs' }]),
+  starter('retirement', '退休', ['noun'], '/rɪˈtaɪəmənt/', '/rɪˈtaɪɚmənt/', 'She is saving money for retirement.', [{ label: '复数', value: 'retirements' }]),
+  starter('anymore', '再也不', ['adverb'], '/ˌeniˈmɔː/', '/ˌeniˈmɔr/', 'I do not live there anymore.'),
+  starter('save', '节约', ['verb'], '/seɪv/', '/seɪv/', 'We can save money by cooking at home.', [{ label: '过去式', value: 'saved' }, { label: '过去分词', value: 'saved' }, { label: '现在分词', value: 'saving' }, { label: '第三人称单数', value: 'saves' }]),
+  starter('debit', '借方', ['noun'], '/ˈdebɪt/', '/ˈdebɪt/', 'A debit appears on the bank statement.', [{ label: '复数', value: 'debits' }]),
+  starter('small town', '小镇', ['noun'], '/smɔːl taʊn/', '/smɔl taʊn/', 'He grew up in a small town.', [{ label: '复数', value: 'small towns' }]),
+  starter('leader', '领导人', ['noun'], '/ˈliːdə/', '/ˈliːdɚ/', 'The team chose a new leader.', [{ label: '复数', value: 'leaders' }]),
+  starter('withdrawal', '提款', ['noun'], '/wɪðˈdrɔːəl/', '/wɪðˈdrɔəl/', 'She made a cash withdrawal at the bank.', [{ label: '复数', value: 'withdrawals' }]),
+]
 const suggestions = ['apple', 'take', 'look up']
 const posLabels: Record<string, string> = {
   noun: '名词', verb: '动词', adjective: '形容词', adverb: '副词', pronoun: '代词',
@@ -57,9 +91,14 @@ function Icon({ name, size = 20 }: { name: 'plus' | 'search' | 'sound' | 'detail
 function loadEntries(): VocabEntry[] {
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(storageKey) ?? '[]')
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter((item): item is VocabEntry => item && typeof item === 'object' && typeof item.term === 'string' && typeof item.meaning === 'string' && Array.isArray(item.parts))
-  } catch { return [] }
+    const saved = Array.isArray(parsed) ? parsed.filter((item): item is VocabEntry => item && typeof item === 'object' && typeof item.term === 'string' && typeof item.meaning === 'string' && Array.isArray(item.parts)) : []
+    if (localStorage.getItem(starterSeedKey)) return saved
+    const existing = new Set(saved.map((entry) => entry.term.toLowerCase()))
+    const seeded = [...saved, ...starterEntries.filter((entry) => !existing.has(entry.term))]
+    localStorage.setItem(storageKey, JSON.stringify(seeded))
+    localStorage.setItem(starterSeedKey, '1')
+    return seeded
+  } catch { return starterEntries }
 }
 
 function saveEntries(entries: VocabEntry[]) {
