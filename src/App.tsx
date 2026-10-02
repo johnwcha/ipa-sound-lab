@@ -6,6 +6,7 @@ type Accent = 'uk' | 'us'
 type Pronunciation = { ipa: string; audio: string }
 type Form = { label: string; value: string }
 type Example = { text: string; author: string; url: string }
+type UsageNote = { label: string; meaning: string; example: string; exampleMeaning: string; sourceUrl: string }
 type VocabEntry = {
   term: string
   meaning: string
@@ -15,6 +16,7 @@ type VocabEntry = {
   us: Pronunciation
   forms: Form[]
   examples: Example[]
+  usageNotes?: UsageNote[]
   sourceUrl: string
   addedAt: number
 }
@@ -27,6 +29,21 @@ type ApiEntry = {
 
 const storageKey = 'ipa-sound-lab-vocabulary-v1'
 const starterSeedKey = 'ipa-sound-lab-photo-starter-v1'
+const appleUsageNote: UsageNote = {
+  label: '俚语 · 常与修饰词连用',
+  meaning: '人；家伙',
+  example: 'He is a good apple who always helps his neighbors.',
+  exampleMeaning: '他是个好人，总是帮助邻居。',
+  sourceUrl: 'https://en.wiktionary.org/wiki/apple',
+}
+
+function enrichEntry(entry: VocabEntry): VocabEntry {
+  if (entry.term.toLowerCase() !== 'apple' || entry.usageNotes?.length) return entry
+  const meaning = /^(?:苹果\s*[,，]\s*家伙|家伙)$/.test(entry.meaning.trim()) ? '苹果' : entry.meaning
+  const translations = (Array.isArray(entry.translations) ? entry.translations : ['n. 苹果']).map((line) => line.replace(/([,，]\s*)?家伙(?=$|\n|\\n)/, '').trim()).filter((line) => line && line !== 'n.')
+  if (!translations.some((line) => line.includes('苹果'))) translations.unshift('n. 苹果')
+  return { ...entry, meaning, translations, usageNotes: [appleUsageNote] }
+}
 const starterDate = new Date('2026-10-02T00:00:00Z').getTime()
 function starter(term: string, meaning: string, parts: string[], uk: string, us: string, example: string, forms: Form[] = []): VocabEntry {
   return {
@@ -92,8 +109,11 @@ function Icon({ name, size = 20 }: { name: 'plus' | 'search' | 'sound' | 'detail
 function loadEntries(): VocabEntry[] {
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(storageKey) ?? '[]')
-    const saved = Array.isArray(parsed) ? parsed.filter((item): item is VocabEntry => item && typeof item === 'object' && typeof item.term === 'string' && typeof item.meaning === 'string' && Array.isArray(item.parts)) : []
-    if (localStorage.getItem(starterSeedKey)) return saved
+    const saved = Array.isArray(parsed) ? parsed.filter((item): item is VocabEntry => item && typeof item === 'object' && typeof item.term === 'string' && typeof item.meaning === 'string' && Array.isArray(item.parts)).map(enrichEntry) : []
+    if (localStorage.getItem(starterSeedKey)) {
+      if (JSON.stringify(parsed) !== JSON.stringify(saved)) localStorage.setItem(storageKey, JSON.stringify(saved))
+      return saved
+    }
     const existing = new Set(saved.map((entry) => entry.term.toLowerCase()))
     const seeded = [...saved, ...starterEntries.filter((entry) => !existing.has(entry.term))]
     localStorage.setItem(storageKey, JSON.stringify(seeded))
@@ -208,11 +228,11 @@ async function lookup(term: string): Promise<VocabEntry | null> {
   const translations = parseTranslations(row[0])
   const apiExamples = [...new Set((api?.meanings ?? []).flatMap((meaning) => meaning.definitions ?? []).map((definition) => definition.example?.trim() ?? '').filter(Boolean))].slice(0, 3).map((text) => ({ text, author: 'Wiktionary', url: api?.sourceUrls?.[0] ?? '' }))
   const examples = tatoeba.length ? tatoeba : apiExamples
-  return {
+  return enrichEntry({
     term, meaning: translations[0]?.replace(/^(?:n|v|vt|vi|adj|adv|prep|pron|conj|interj)\.\s*/i, '').slice(0, 88) ?? row[0].slice(0, 88),
     translations, parts, ...parsePronunciations(api, term, offline), forms: parseForms(row[2], parts), examples,
     sourceUrl: api?.sourceUrls?.find((url) => url.includes('wiktionary.org')) ?? '', addedAt: Date.now(),
-  }
+  })
 }
 
 function play(entry: VocabEntry, accent: Accent) {
@@ -329,14 +349,14 @@ function App() {
       <section className="library" aria-labelledby="library-title">
         <div className="section-title"><div><span className="section-overline">YOUR COLLECTION</span><h2 id="library-title">我的词库 <span>{entries.length.toString().padStart(2, '0')}</span></h2></div><div className="section-line" /></div>
         <div className="library-tools"><div className="filters" role="group" aria-label="筛选词汇">{[['all', '全部'], ['noun', '名词'], ['verb', '动词'], ['phrase', '短语']].map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} onClick={() => setFilter(value)}>{label}</button>)}</div><label className="search-field"><Icon name="search" size={19} /><span className="sr-only">搜索词库</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索词库" /></label></div>
-        {visible.length ? <div className="vocab-list">{visible.map((entry, index) => <article className="vocab-card" key={entry.term}><div className="card-main"><span className="card-index">{(index + 1).toString().padStart(2, '0')}</span><div className="card-content"><div className="term-line"><h3>{entry.term}</h3><span className="pos-badge">{entry.parts.map((part) => posLabels[part] ?? part).join(' · ')}</span></div><p className="chinese-meaning">{entry.meaning}</p><div className="phonetics"><span>英 <b>{entry.uk.ipa || '暂无音标'}</b></span><button onClick={() => { study.recordActivity(entry.term); play(entry, 'uk') }} aria-label={`播放 ${entry.term} 英式发音`}><Icon name="sound" size={16} /></button><i /><span>美 <b>{entry.us.ipa || '暂无音标'}</b></span><button onClick={() => { study.recordActivity(entry.term); play(entry, 'us') }} aria-label={`播放 ${entry.term} 美式发音`}><Icon name="sound" size={16} /></button></div></div></div><button className="details-button" onClick={() => { study.recordActivity(entry.term); setSelected(entry.term) }} aria-label={`查看 ${entry.term} 详情`} title="查看详情"><Icon name="details" size={21} /><span>详情</span></button></article>)}</div> : <div className="empty-state"><div className="empty-icon"><Icon name="book" size={32} /></div><h3>{entries.length ? '没有找到匹配的词' : '从第一个单词开始'}</h3><p>{entries.length ? '试试其他搜索词或筛选条件。' : '在上方输入英文，释义与发音就会加入你的词库。'}</p>{!entries.length && <button onClick={() => document.getElementById('new-word')?.focus()}>添加单词 <Icon name="arrow" size={17} /></button>}</div>}
+        {visible.length ? <div className="vocab-list">{visible.map((entry, index) => <article className="vocab-card" key={entry.term}><div className="card-main"><span className="card-index">{(index + 1).toString().padStart(2, '0')}</span><div className="card-content"><div className="term-line"><h3>{entry.term}</h3><span className="pos-badge">{entry.parts.map((part) => posLabels[part] ?? part).join(' · ')}</span>{entry.usageNotes?.length ? <span className="usage-badge">含俚语义</span> : null}</div><p className="chinese-meaning">{entry.meaning}</p><div className="phonetics"><span>英 <b>{entry.uk.ipa || '暂无音标'}</b></span><button onClick={() => { study.recordActivity(entry.term); play(entry, 'uk') }} aria-label={`播放 ${entry.term} 英式发音`}><Icon name="sound" size={16} /></button><i /><span>美 <b>{entry.us.ipa || '暂无音标'}</b></span><button onClick={() => { study.recordActivity(entry.term); play(entry, 'us') }} aria-label={`播放 ${entry.term} 美式发音`}><Icon name="sound" size={16} /></button></div></div></div><button className="details-button" onClick={() => { study.recordActivity(entry.term); setSelected(entry.term) }} aria-label={`查看 ${entry.term} 详情`} title="查看详情"><Icon name="details" size={21} /><span>详情</span></button></article>)}</div> : <div className="empty-state"><div className="empty-icon"><Icon name="book" size={32} /></div><h3>{entries.length ? '没有找到匹配的词' : '从第一个单词开始'}</h3><p>{entries.length ? '试试其他搜索词或筛选条件。' : '在上方输入英文，释义与发音就会加入你的词库。'}</p>{!entries.length && <button onClick={() => document.getElementById('new-word')?.focus()}>添加单词 <Icon name="arrow" size={17} /></button>}</div>}
       </section>
     </main>}
     {view === 'study' && <StudyPage tracker={study} />}
 
     <footer><div><span>词间</span> · 把语言一点点收藏起来</div><div>词典：<a href="https://github.com/skywind3000/ECDICT" target="_blank" rel="noreferrer">ECDICT</a> · <a href="https://github.com/open-dict-data/ipa-dict" target="_blank" rel="noreferrer">ipa-dict</a> · <a href="https://dictionaryapi.dev/" target="_blank" rel="noreferrer">Dictionary API</a> · <a href="https://tatoeba.org/" target="_blank" rel="noreferrer">Tatoeba</a></div></footer>
 
-    {active && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><aside className="details-panel" onPointerDownCapture={() => study.recordActivity()} onKeyDownCapture={() => study.recordActivity()} onScrollCapture={() => study.recordActivity()} role="dialog" aria-modal="true" aria-labelledby="detail-title"><div className="panel-head"><span>词汇详情 / WORD DETAILS</span><button onClick={() => setSelected(null)} aria-label="关闭详情"><Icon name="close" /></button></div><div className="panel-body"><div className="detail-hero"><div className="detail-kicker">已收藏 · {new Date(active.addedAt).toLocaleDateString('zh-CN')}</div><h2 id="detail-title">{active.term}</h2><div className="detail-parts">{active.parts.map((part) => <span key={part}>{posLabels[part] ?? part}</span>)}</div><p>{active.meaning}</p></div><div className="detail-section"><h3>发音 <small>PRONUNCIATION</small></h3><div className="detail-sounds">{(['uk', 'us'] as Accent[]).map((accent) => <div key={accent}><span>{accent === 'uk' ? '🇬🇧 英式' : '🇺🇸 美式'}</span><strong>{active[accent].ipa || '暂无音标'}</strong><button onClick={() => { study.recordActivity(active.term); play(active, accent) }} aria-label={`播放 ${active.term} ${accent === 'uk' ? '英式' : '美式'}发音`}><Icon name="sound" size={19} /></button></div>)}</div><p className="detail-note">无录音时使用设备语音朗读，声音取决于浏览器。短语音标可能由各单词音标组合。</p></div><div className="detail-section"><h3>词性与释义 <small>MEANINGS</small></h3><div className="translation-list">{active.translations.map((translation, index) => <p key={`${index}-${translation}`}>{translation}</p>)}</div></div>{active.forms.length > 0 && <div className="detail-section"><h3>词形变化 <small>WORD FORMS</small></h3><div className="form-grid">{active.forms.map((form) => <div key={form.label}><span>{form.label}</span><strong>{form.value}</strong></div>)}</div></div>}<div className="detail-section"><h3>例句与表达 <small>EXAMPLES</small></h3>{active.examples.length ? <ol className="example-list">{active.examples.map((example, index) => <li key={`${index}-${example.text}`}>{example.text}{example.url && <a href={example.url} target="_blank" rel="noreferrer">{example.author ? `来源：${example.author}` : '来源'}</a>}</li>)}</ol> : <p className="no-example">这条词目暂时没有可用例句。</p>}</div>{active.sourceUrl && <a className="source-link" href={active.sourceUrl} target="_blank" rel="noreferrer">查看词典来源 <Icon name="arrow" size={15} /></a>}</div><div className="panel-foot"><button className="remove-button" onClick={() => removeWord(active.term)}><Icon name="trash" size={17} /> 从词库移除</button><button className="panel-done" onClick={() => setSelected(null)}>完成</button></div></aside></div>}
+    {active && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><aside className="details-panel" onPointerDownCapture={() => study.recordActivity()} onKeyDownCapture={() => study.recordActivity()} onScrollCapture={() => study.recordActivity()} role="dialog" aria-modal="true" aria-labelledby="detail-title"><div className="panel-head"><span>词汇详情 / WORD DETAILS</span><button onClick={() => setSelected(null)} aria-label="关闭详情"><Icon name="close" /></button></div><div className="panel-body"><div className="detail-hero"><div className="detail-kicker">已收藏 · {new Date(active.addedAt).toLocaleDateString('zh-CN')}</div><h2 id="detail-title">{active.term}</h2><div className="detail-parts">{active.parts.map((part) => <span key={part}>{posLabels[part] ?? part}</span>)}</div><p>{active.meaning}</p></div><div className="detail-section"><h3>发音 <small>PRONUNCIATION</small></h3><div className="detail-sounds">{(['uk', 'us'] as Accent[]).map((accent) => <div key={accent}><span>{accent === 'uk' ? '🇬🇧 英式' : '🇺🇸 美式'}</span><strong>{active[accent].ipa || '暂无音标'}</strong><button onClick={() => { study.recordActivity(active.term); play(active, accent) }} aria-label={`播放 ${active.term} ${accent === 'uk' ? '英式' : '美式'}发音`}><Icon name="sound" size={19} /></button></div>)}</div><p className="detail-note">无录音时使用设备语音朗读，声音取决于浏览器。短语音标可能由各单词音标组合。</p></div><div className="detail-section"><h3>词性与释义 <small>MEANINGS</small></h3><div className="translation-list">{active.translations.map((translation, index) => <p key={`${index}-${translation}`}>{translation}</p>)}</div></div>{active.usageNotes?.length ? <div className="detail-section"><h3>特别用法 <small>USAGE</small></h3><div className="usage-notes">{active.usageNotes.map((note, index) => <div className="usage-note" key={`${index}-${note.label}`}><span>{note.label}</span><p>{note.meaning}</p><blockquote>{note.example}<small>{note.exampleMeaning}</small></blockquote><a href={note.sourceUrl} target="_blank" rel="noreferrer">查看用法来源</a></div>)}</div></div> : null}{active.forms.length > 0 && <div className="detail-section"><h3>词形变化 <small>WORD FORMS</small></h3><div className="form-grid">{active.forms.map((form) => <div key={form.label}><span>{form.label}</span><strong>{form.value}</strong></div>)}</div></div>}<div className="detail-section"><h3>例句与表达 <small>EXAMPLES</small></h3>{active.examples.length ? <ol className="example-list">{active.examples.map((example, index) => <li key={`${index}-${example.text}`}>{example.text}{example.url && <a href={example.url} target="_blank" rel="noreferrer">{example.author ? `来源：${example.author}` : '来源'}</a>}</li>)}</ol> : <p className="no-example">这条词目暂时没有可用例句。</p>}</div>{active.sourceUrl && <a className="source-link" href={active.sourceUrl} target="_blank" rel="noreferrer">查看词典来源 <Icon name="arrow" size={15} /></a>}</div><div className="panel-foot"><button className="remove-button" onClick={() => removeWord(active.term)}><Icon name="trash" size={17} /> 从词库移除</button><button className="panel-done" onClick={() => setSelected(null)}>完成</button></div></aside></div>}
   </div>
 }
 
