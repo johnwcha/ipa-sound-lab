@@ -10,12 +10,6 @@
 .timer-kicker{font-size:14px;color:#c9ddc7;font-weight:700}
 .timer-value{font-family:'DM Sans',sans-serif;font-variant-numeric:tabular-nums;font-size:clamp(52px,14vw,78px);font-weight:600;line-height:1.1;letter-spacing:-.05em;margin:8px 0}
 .timer-card p{font-size:15px;line-height:1.6;color:#e1ecdf;margin:0}
-.timer-actions{display:flex;gap:10px;flex-wrap:wrap}
-.timer-actions button{border-radius:10px;padding:13px 20px;font-size:16px;font-weight:700;min-width:130px}
-.timer-primary{border:0;background:#d8e9ab;color:#254a35}
-.timer-primary:hover{background:#e6f3c4}
-.timer-secondary{border:1px solid #a9c4aa;background:transparent;color:#fff}
-.timer-secondary:hover{background:#34634e}
 .timer-reviewed{font-size:14px;color:#dcebdd;border-top:1px solid #5d8267;padding-top:16px}
 .timer-reviewed strong{color:#fff}
 .study-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin:16px 0 32px}
@@ -39,7 +33,5 @@
 .study-history span{font-size:13px;color:#718272;margin-top:3px}
 .study-empty{background:#fff;border:1px dashed #cbd8c7;border-radius:12px;color:#617365;padding:25px;font-size:16px;line-height:1.6}
 .study-storage-note{font-size:13px;line-height:1.5;color:#758576;margin:8px 0 0}
-.review-button{display:inline-flex;align-items:center;justify-content:center;border:1px solid #bfd5b6;border-radius:8px;padding:10px 12px;background:#edf5e8;color:#28573a;font-size:14px;font-weight:700}
-.review-button:disabled{opacity:.65;cursor:default}
-@media(max-width:480px){.site-header .header-count{display:none}.site-nav{margin-right:0;gap:3px}.site-nav a{padding:8px;font-size:13px}.study-heading{align-items:flex-start}.study-heading>a{padding-top:14px}.timer-actions button{flex:1;min-width:0}.study-stats strong{font-size:19px}.study-chart{gap:4px}}
-@media(min-width:640px){.study-page{padding-top:62px}.timer-card{padding:34px 38px;flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:wrap}.timer-card>div:first-child{max-width:480px}.timer-actions{flex-direction:column}.timer-reviewed{width:100%}.study-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:480px){.site-header .header-count{display:none}.site-nav{margin-right:0;gap:3px}.site-nav a{padding:8px;font-size:13px}.study-heading{align-items:flex-start}.study-heading>a{padding-top:14px}.study-stats strong{font-size:19px}.study-chart{gap:4px}}
+@media(min-width:640px){.study-page{padding-top:62px}.timer-card{padding:34px 38px}.study-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
