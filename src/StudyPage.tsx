@@ -39,7 +39,7 @@ function loadStudy(): StudyData {
       const durationMs = typeof active.durationMs === 'number' ? active.durationMs : typeof active.elapsedMs === 'number' ? active.elapsedMs : 0
       const id = `recovered-${active.startedAt}`
       if (durationMs >= minimumSessionMs && !sessions.some((session) => session.id === id)) {
-        sessions.unshift({ id, startedAt: active.startedAt, endedAt: typeof active.lastTickAt === 'number' ? active.lastTickAt : Date.now(), durationMs, reviewedTerms: Array.isArray(active.reviewedTerms) ? active.reviewedTerms.filter((term): term is string => typeof term === 'string') : [] })
+        sessions.unshift({ id, startedAt: active.startedAt, endedAt: typeof active.lastTickAt === 'number' ? active.lastTickAt : active.startedAt + durationMs, durationMs, reviewedTerms: Array.isArray(active.reviewedTerms) ? active.reviewedTerms.filter((term): term is string => typeof term === 'string') : [] })
       }
     }
     const result: StudyData = { sessions, active: null }
