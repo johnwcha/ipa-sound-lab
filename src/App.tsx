@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { StudyPage, useStudyTracker } from './StudyPage'
+import { QuizPage } from './QuizPage'
 
 type Accent = 'uk' | 'us'
 type Pronunciation = { ipa: string; audio: string }
@@ -255,7 +256,7 @@ function speak(term: string, accent: Accent) {
 function App() {
   const [entries, setEntries] = useState<VocabEntry[]>(loadEntries)
   const study = useStudyTracker()
-  const [view, setView] = useState<'vocab' | 'study'>(() => window.location.hash === '#study' ? 'study' : 'vocab')
+  const [view, setView] = useState<'vocab' | 'study' | 'quiz'>(() => window.location.hash === '#study' ? 'study' : window.location.hash === '#quiz' ? 'quiz' : 'vocab')
   const [input, setInput] = useState('')
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
@@ -272,7 +273,7 @@ function App() {
   const active = entries.find((entry) => entry.term === selected) ?? null
 
   useEffect(() => {
-    const updateView = () => { if (window.location.hash === '#study') study.finish(); setView(window.location.hash === '#study' ? 'study' : 'vocab'); setSelected(null) }
+    const updateView = () => { const next = window.location.hash === '#study' ? 'study' : window.location.hash === '#quiz' ? 'quiz' : 'vocab'; if (next === 'study') study.finish(); setView(next); setSelected(null) }
     window.addEventListener('hashchange', updateView)
     return () => window.removeEventListener('hashchange', updateView)
   }, [])
@@ -328,7 +329,7 @@ function App() {
 
   return <div className="app-shell">
     <header className="site-header">
-      <div className="header-inner"><a className="logo" href="#vocab"><span className="logo-mark"><Icon name="book" size={21} /></span><span>词间 <small>VOCAB NOTEBOOK</small></span></a><nav className="site-nav" aria-label="页面导航"><a className={view === 'vocab' ? 'active' : ''} href="#vocab" aria-current={view === 'vocab' ? 'page' : undefined}>词库</a><a className={view === 'study' ? 'active' : ''} href="#study" aria-current={view === 'study' ? 'page' : undefined}>学习记录</a></nav><span className="header-count">已收藏 <strong>{entries.length}</strong> 词</span></div>
+      <div className="header-inner"><a className="logo" href="#vocab"><span className="logo-mark"><Icon name="book" size={21} /></span><span>词间 <small>VOCAB NOTEBOOK</small></span></a><nav className="site-nav" aria-label="页面导航"><a className={view === 'vocab' ? 'active' : ''} href="#vocab" aria-current={view === 'vocab' ? 'page' : undefined}>词库</a><a className={view === 'quiz' ? 'active' : ''} href="#quiz" aria-current={view === 'quiz' ? 'page' : undefined}>测验与卡片</a><a className={view === 'study' ? 'active' : ''} href="#study" aria-current={view === 'study' ? 'page' : undefined}>学习记录</a></nav><span className="header-count">已收藏 <strong>{entries.length}</strong> 词</span></div>
     </header>
 
     {view === 'vocab' && <main id="vocab" className="main-content" onPointerDownCapture={(event) => { if ((event.target as HTMLElement).closest('button,input,a')) study.recordActivity() }} onKeyDownCapture={() => study.recordActivity()} onInputCapture={() => study.recordActivity()} onScrollCapture={() => study.recordActivity()}>
@@ -353,6 +354,7 @@ function App() {
       </section>
     </main>}
     {view === 'study' && <StudyPage tracker={study} />}
+    {view === 'quiz' && <QuizPage entries={entries} onPlay={(entry, accent) => { const full = entries.find((item) => item.term === entry.term); if (full) play(full, accent) }} onActivity={study.recordActivity} />}
 
     <footer><div><span>词间</span> · 把语言一点点收藏起来</div><div>词典：<a href="https://github.com/skywind3000/ECDICT" target="_blank" rel="noreferrer">ECDICT</a> · <a href="https://github.com/open-dict-data/ipa-dict" target="_blank" rel="noreferrer">ipa-dict</a> · <a href="https://dictionaryapi.dev/" target="_blank" rel="noreferrer">Dictionary API</a> · <a href="https://tatoeba.org/" target="_blank" rel="noreferrer">Tatoeba</a></div></footer>
 
