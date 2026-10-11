@@ -1,0 +1,9 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    { "collectionGroup": "vocabulary", "fieldPath": "entry", "indexes": [] },
+    { "collectionGroup": "quizRounds", "fieldPath": "outcomes", "indexes": [] },
+    { "collectionGroup": "studySessions", "fieldPath": "reviewedTerms", "indexes": [] },
+    { "collectionGroup": "imports", "fieldPath": "baseline", "indexes": [] }
+  ]
+}

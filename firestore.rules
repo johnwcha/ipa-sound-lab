@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner(uid) { return request.auth != null && request.auth.uid == uid; }
+    function text(value, maximum) { return value is string && value.size() <= maximum; }
+    function nonnegative(value) { return value is number && value >= 0 && value <= 9007199254740991; }
+    function strings(value, maximum) { return value is list && value.size() <= maximum; }
+    function sound(value) {
+      return value is map && value.keys().hasOnly(['ipa', 'audio']) && text(value.ipa, 500) && text(value.audio, 4000);
+    }
+    function entry(value) {
+      return value is map && value.keys().hasAll(['term', 'meaning', 'translations', 'parts', 'uk', 'us', 'forms', 'examples', 'sourceUrl', 'addedAt'])
+        && value.keys().hasOnly(['term', 'meaning', 'translations', 'parts', 'uk', 'us', 'forms', 'examples', 'usageNotes', 'sourceUrl', 'addedAt'])
+        && text(value.term, 56) && value.term.size() > 0 && value.term.matches("^[a-z][a-z '-]*[a-z]$|^[a-z]$")
+        && text(value.meaning, 4000) && strings(value.translations, 100) && strings(value.parts, 30)
+        && sound(value.uk) && sound(value.us) && strings(value.forms, 100) && strings(value.examples, 100)
+        && (!('usageNotes' in value) || strings(value.usageNotes, 30)) && text(value.sourceUrl, 4000) && nonnegative(value.addedAt);
+    }
+    function vocabulary(value) {
+      return value.keys().hasOnly(['entry', 'deleted', 'updatedAt']) && entry(value.entry) && value.deleted is bool && nonnegative(value.updatedAt);
+    }
+    function round(value) {
+      return value.keys().hasOnly(['id', 'mode', 'score', 'total', 'completedAt', 'outcomes'])
+        && text(value.id, 200) && value.id.size() > 0 && value.mode in ['choice', 'mixed', 'audio']
+        && value.score is int && value.total is int && value.total > 0 && value.total <= 100
+        && value.score >= 0 && value.score <= value.total && nonnegative(value.completedAt)
+        && value.outcomes is list && value.outcomes.size() == value.total;
+    }
+    function session(value) {
+      return value.keys().hasOnly(['id', 'startedAt', 'endedAt', 'durationMs', 'reviewedTerms'])
+        && text(value.id, 200) && value.id.size() > 0 && nonnegative(value.startedAt) && nonnegative(value.endedAt)
+        && value.endedAt >= value.startedAt && nonnegative(value.durationMs) && value.durationMs <= value.endedAt - value.startedAt
+        && strings(value.reviewedTerms, 1000);
+    }
+    function baseline(value) {
+      return value is map && value.keys().hasOnly(['choiceWins', 'mixedWins', 'rounds', 'missed'])
+        && value.choiceWins is int && value.choiceWins >= 0 && value.mixedWins is int && value.mixedWins >= 0
+        && value.rounds is int && value.rounds >= 0 && strings(value.missed, 1000);
+    }
+    function imported(value) {
+      return value.keys().hasOnly(['id', 'baseline', 'completedAt']) && text(value.id, 200) && value.id.size() > 0
+        && baseline(value.baseline) && nonnegative(value.completedAt);
+    }
+    match /users/{uid}/vocabulary/{id} {
+      allow read: if owner(uid);
+      allow create, update: if owner(uid) && vocabulary(request.resource.data)
+        && id == request.resource.data.entry.term.replace(' ', '%20')
+        && (!exists(/databases/$(database)/documents/users/$(uid)/vocabulary/$(id)) || request.resource.data.entry.term == resource.data.entry.term);
+      // Physical deletion is intentionally forbidden. Clients use tombstones.
+    }
+    match /users/{uid}/quizRounds/{id} {
+      allow read: if owner(uid);
+      allow create: if owner(uid) && round(request.resource.data) && request.resource.data.id == id;
+      allow update: if owner(uid) && request.resource.data == resource.data;
+    }
+    match /users/{uid}/studySessions/{id} {
+      allow read: if owner(uid);
+      allow create: if owner(uid) && session(request.resource.data) && request.resource.data.id == id;
+      allow update: if owner(uid) && request.resource.data == resource.data;
+    }
+    match /users/{uid}/imports/{id} {
+      allow read: if owner(uid);
+      allow create: if owner(uid) && imported(request.resource.data) && request.resource.data.id == id;
+      allow update: if owner(uid) && request.resource.data == resource.data;
+    }
+  }
+}

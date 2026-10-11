@@ -1,26 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
-import { StudyPage, useStudyTracker } from './StudyPage'
+import { StudyPage } from './StudyPage'
+import { useStudyTracker } from './data/useStudyTracker'
 import { QuizPage } from './QuizPage'
+import { AccountControls } from './AccountControls'
+import { usePersonalData } from './data/usePersonalData'
+import { enrichEntry, loadEntries } from './data/guestVocabulary'
+import type { PersonalStore } from './data/usePersonalData'
+import type { Accent, Form, VocabEntry } from './data/model'
+type Example = VocabEntry['examples'][number]
+type Pronunciation = VocabEntry['uk']
 
-type Accent = 'uk' | 'us'
-type Pronunciation = { ipa: string; audio: string }
-type Form = { label: string; value: string }
-type Example = { text: string; author: string; url: string }
-type UsageNote = { label: string; meaning: string; example: string; exampleMeaning: string; sourceUrl: string }
-type VocabEntry = {
-  term: string
-  meaning: string
-  translations: string[]
-  parts: string[]
-  uk: Pronunciation
-  us: Pronunciation
-  forms: Form[]
-  examples: Example[]
-  usageNotes?: UsageNote[]
-  sourceUrl: string
-  addedAt: number
-}
 type DictionaryRow = [string, string, string]
 type ApiEntry = {
   phonetics?: { text?: string; audio?: string }[]
@@ -28,56 +18,6 @@ type ApiEntry = {
   sourceUrls?: string[]
 }
 
-const storageKey = 'ipa-sound-lab-vocabulary-v1'
-const starterSeedKey = 'ipa-sound-lab-photo-starter-v1'
-const appleUsageNote: UsageNote = {
-  label: '俚语 · 常与修饰词连用',
-  meaning: '人；家伙',
-  example: 'He is a good apple who always helps his neighbors.',
-  exampleMeaning: '他是个好人，总是帮助邻居。',
-  sourceUrl: 'https://en.wiktionary.org/wiki/apple',
-}
-
-function enrichEntry(entry: VocabEntry): VocabEntry {
-  if (entry.term.toLowerCase() !== 'apple' || entry.usageNotes?.length) return entry
-  const meaning = /^(?:苹果\s*[,，]\s*家伙|家伙)$/.test(entry.meaning.trim()) ? '苹果' : entry.meaning
-  const translations = (Array.isArray(entry.translations) ? entry.translations : ['n. 苹果']).map((line) => line.replace(/([,，]\s*)?家伙(?=$|\n|\\n)/, '').trim()).filter((line) => line && line !== 'n.')
-  if (!translations.some((line) => line.includes('苹果'))) translations.unshift('n. 苹果')
-  return { ...entry, meaning, translations, usageNotes: [appleUsageNote] }
-}
-const starterDate = new Date('2026-10-02T00:00:00Z').getTime()
-function starter(term: string, meaning: string, parts: string[], uk: string, us: string, example: string, forms: Form[] = []): VocabEntry {
-  return {
-    term, meaning, translations: [meaning], parts,
-    uk: { ipa: uk, audio: '' }, us: { ipa: us, audio: '' }, forms,
-    examples: [{ text: example, author: '', url: '' }], sourceUrl: '', addedAt: starterDate,
-  }
-}
-const starterEntries: VocabEntry[] = [
-  starter('financial', '金融的', ['adjective'], '/faɪˈnænʃəl/', '/ˌfaɪˈnænʃəl/', 'She asked for financial advice.'),
-  starter('finance', '金融', ['noun'], '/ˈfaɪnæns/', '/ˈfaɪnæns/', 'He works in finance.'),
-  starter('credit union', '信用合作社', ['noun'], '/ˈkredɪt ˈjuːniən/', '/ˈkredɪt ˈjuːnjən/', 'She opened an account at a credit union.', [{ label: '复数', value: 'credit unions' }]),
-  starter('credit card', '信用卡', ['noun'], '/ˈkredɪt kɑːd/', '/ˈkredɪt kɑrd/', 'I paid for the ticket with a credit card.', [{ label: '复数', value: 'credit cards' }]),
-  starter('check', '支票', ['noun'], '/tʃek/', '/tʃek/', 'He wrote a check for the rent.', [{ label: '复数', value: 'checks' }]),
-  starter('means', '方法', ['noun'], '/miːnz/', '/miːnz/', 'We need to find a means of solving the problem.', [{ label: '单数与复数', value: 'means' }]),
-  starter('secure', '安全的', ['adjective'], '/sɪˈkjʊə/', '/sɪˈkjʊr/', 'Use a secure password for your account.'),
-  starter('services', '服务', ['noun'], '/ˈsɜːvɪsɪz/', '/ˈsɝvɪsɪz/', 'The bank offers online services.', [{ label: '单数', value: 'service' }, { label: '复数', value: 'services' }]),
-  starter('cost', '花费', ['verb', 'noun'], '/kɒst/', '/kɑst/', 'The repair may cost more than expected.', [{ label: '复数', value: 'costs' }, { label: '过去式', value: 'cost' }, { label: '过去分词', value: 'cost' }, { label: '现在分词', value: 'costing' }, { label: '第三人称单数', value: 'costs' }]),
-  starter('costs', '成本', ['noun'], '/kɒsts/', '/kɑsts/', 'The company is trying to reduce costs.', [{ label: '单数', value: 'cost' }, { label: '复数', value: 'costs' }]),
-  starter('members', '成员', ['noun'], '/ˈmembəz/', '/ˈmembɚz/', 'All members can vote at the meeting.', [{ label: '单数', value: 'member' }, { label: '复数', value: 'members' }]),
-  starter('transfer', '转移', ['verb'], '/trænsˈfɜː/', '/trænsˈfɝ/', 'You can transfer money between accounts.', [{ label: '过去式', value: 'transferred' }, { label: '过去分词', value: 'transferred' }, { label: '现在分词', value: 'transferring' }, { label: '第三人称单数', value: 'transfers' }]),
-  starter('accounts', '账户', ['noun'], '/əˈkaʊnts/', '/əˈkaʊnts/', 'She checks her accounts every morning.', [{ label: '单数', value: 'account' }, { label: '复数', value: 'accounts' }]),
-  starter('countries', '国家', ['noun'], '/ˈkʌntriz/', '/ˈkʌntriz/', 'People from many countries attended the event.', [{ label: '单数', value: 'country' }, { label: '复数', value: 'countries' }]),
-  starter('deposit', '汇款', ['noun', 'verb'], '/dɪˈpɒzɪt/', '/dɪˈpɑzɪt/', 'I made a deposit at the bank.', [{ label: '复数', value: 'deposits' }, { label: '过去式', value: 'deposited' }, { label: '过去分词', value: 'deposited' }, { label: '现在分词', value: 'depositing' }, { label: '第三人称单数', value: 'deposits' }]),
-  starter('direct', '直接', ['adjective', 'verb'], '/dɪˈrekt/', '/dəˈrekt/', 'There is a direct train to the city.', [{ label: '过去式', value: 'directed' }, { label: '过去分词', value: 'directed' }, { label: '现在分词', value: 'directing' }, { label: '第三人称单数', value: 'directs' }]),
-  starter('retirement', '退休', ['noun'], '/rɪˈtaɪəmənt/', '/rɪˈtaɪɚmənt/', 'She is saving money for retirement.', [{ label: '复数', value: 'retirements' }]),
-  starter('anymore', '再也不', ['adverb'], '/ˌeniˈmɔː/', '/ˌeniˈmɔr/', 'I do not live there anymore.'),
-  starter('save', '节约', ['verb'], '/seɪv/', '/seɪv/', 'We can save money by cooking at home.', [{ label: '过去式', value: 'saved' }, { label: '过去分词', value: 'saved' }, { label: '现在分词', value: 'saving' }, { label: '第三人称单数', value: 'saves' }]),
-  starter('debit', '借方', ['noun'], '/ˈdebɪt/', '/ˈdebɪt/', 'A debit appears on the bank statement.', [{ label: '复数', value: 'debits' }]),
-  starter('small town', '小镇', ['noun'], '/smɔːl taʊn/', '/smɔl taʊn/', 'He grew up in a small town.', [{ label: '复数', value: 'small towns' }]),
-  starter('leader', '领导人', ['noun'], '/ˈliːdə/', '/ˈliːdɚ/', 'The team chose a new leader.', [{ label: '复数', value: 'leaders' }]),
-  starter('withdrawal', '提款', ['noun'], '/wɪðˈdrɔːəl/', '/wɪðˈdrɔəl/', 'She made a cash withdrawal at the bank.', [{ label: '复数', value: 'withdrawals' }]),
-]
 const suggestions = ['apple', 'take', 'look up']
 const posLabels: Record<string, string> = {
   noun: '名词', verb: '动词', adjective: '形容词', adverb: '副词', pronoun: '代词',
@@ -105,26 +45,6 @@ function Icon({ name, size = 20 }: { name: 'plus' | 'search' | 'sound' | 'detail
     arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
   }
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
-}
-
-function loadEntries(): VocabEntry[] {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(storageKey) ?? '[]')
-    const saved = Array.isArray(parsed) ? parsed.filter((item): item is VocabEntry => item && typeof item === 'object' && typeof item.term === 'string' && typeof item.meaning === 'string' && Array.isArray(item.parts)).map(enrichEntry) : []
-    if (localStorage.getItem(starterSeedKey)) {
-      if (JSON.stringify(parsed) !== JSON.stringify(saved)) localStorage.setItem(storageKey, JSON.stringify(saved))
-      return saved
-    }
-    const existing = new Set(saved.map((entry) => entry.term.toLowerCase()))
-    const seeded = [...saved, ...starterEntries.filter((entry) => !existing.has(entry.term))]
-    localStorage.setItem(storageKey, JSON.stringify(seeded))
-    localStorage.setItem(starterSeedKey, '1')
-    return seeded
-  } catch { return starterEntries }
-}
-
-function saveEntries(entries: VocabEntry[]) {
-  try { localStorage.setItem(storageKey, JSON.stringify(entries)) } catch { /* Private browsing may block storage. */ }
 }
 
 const shardCache = new Map<string, Record<string, DictionaryRow>>()
@@ -254,8 +174,13 @@ function speak(term: string, accent: Accent) {
 }
 
 function App() {
-  const [entries, setEntries] = useState<VocabEntry[]>(loadEntries)
-  const study = useStudyTracker()
+  const store = usePersonalData(loadEntries)
+  return <Notebook key={store.scope} store={store} />
+}
+
+function Notebook({ store }: { store: PersonalStore }) {
+  const entries = store.entries
+  const study = useStudyTracker(store)
   const [view, setView] = useState<'vocab' | 'study' | 'quiz'>(() => window.location.hash === '#study' ? 'study' : window.location.hash === '#quiz' ? 'quiz' : 'vocab')
   const [input, setInput] = useState('')
   const [search, setSearch] = useState('')
@@ -271,36 +196,38 @@ function App() {
     return matchesFilter && `${entry.term} ${entry.meaning}`.toLowerCase().includes(search.trim().toLowerCase())
   }), [entries, filter, search])
   const active = entries.find((entry) => entry.term === selected) ?? null
+  const storeRef = useRef(store)
+  useLayoutEffect(() => { storeRef.current = store })
 
   useEffect(() => {
-    const updateView = () => { const next = window.location.hash === '#study' ? 'study' : window.location.hash === '#quiz' ? 'quiz' : 'vocab'; if (next === 'study') study.finish(); setView(next); setSelected(null) }
-    window.addEventListener('hashchange', updateView)
-    return () => window.removeEventListener('hashchange', updateView)
-  }, [])
-
-  useEffect(() => {
-    const outdated = entries.filter((entry) => !entry.uk.ipa || !entry.us.ipa || entry.parts.includes('interjection'))
+    const current = storeRef.current
+    if (!current.canEdit || !current.online || (current.user && !current.serverReady)) return
+    const outdated = entries.filter(entry => !entry.uk.ipa || !entry.us.ipa || entry.parts.includes('interjection'))
     if (!outdated.length) return
     let cancelled = false
-    void Promise.all(outdated.map(async (entry) => ({ term: entry.term, ipa: await getIpaRow(entry.term), row: await getDictionaryRow(entry.term) }))).then((updates) => {
-      if (cancelled) return
-      setEntries((current) => {
-        const next = current.map((entry) => {
-          const update = updates.find((item) => item.term === entry.term)
-          if (!update) return entry
-          return { ...entry, uk: { ...entry.uk, ipa: entry.uk.ipa || update.ipa?.[0] || '' }, us: { ...entry.us, ipa: entry.us.ipa || update.ipa?.[1] || '' }, parts: update.row ? parseParts(update.row, null, entry.term) : entry.parts }
-        })
-        if (JSON.stringify(next) === JSON.stringify(current)) return current
-        saveEntries(next)
-        return next
-      })
-    })
+    const owner = current.scope
+    void Promise.all(outdated.map(async entry => ({ entry, ipa: await getIpaRow(entry.term), row: await getDictionaryRow(entry.term) }))).then(updates => {
+      if (cancelled || storeRef.current.scope !== owner) return
+      for (const { entry, ipa, row } of updates) {
+        const next = { ...entry, uk: { ...entry.uk, ipa: entry.uk.ipa || ipa?.[0] || '' }, us: { ...entry.us, ipa: entry.us.ipa || ipa?.[1] || '' }, parts: row ? parseParts(row, null, entry.term) : entry.parts }
+        if (JSON.stringify(next) === JSON.stringify(entry)) continue
+        const original = current.data.vocabulary.find(record => record.entry.term === entry.term)
+        if (original) storeRef.current.refreshWord(next, original.updatedAt)
+      }
+    }).catch(() => { /* Lookup can retry on a later online refresh; user data is unchanged. */ })
     return () => { cancelled = true }
-  }, [entries])
+  }, [entries, store.online, store.serverReady, store.canEdit])
 
-  function updateEntries(next: VocabEntry[]) { setEntries(next); saveEntries(next) }
+  const finishStudy = study.finish
+  useEffect(() => {
+    const updateView = () => { const next = window.location.hash === '#study' ? 'study' : window.location.hash === '#quiz' ? 'quiz' : 'vocab'; if (next === 'study') finishStudy(); setView(next); setSelected(null) }
+    window.addEventListener('hashchange', updateView)
+    return () => window.removeEventListener('hashchange', updateView)
+  }, [finishStudy])
 
   async function addWord(raw = input) {
+    if (!store.canEdit) { setMessage('请等待账户加载或恢复网络后再编辑。'); return }
+    const owner = store.scope
     const term = raw.trim().replace(/\s+/g, ' ').toLowerCase()
     if (!term) { setMessage('请输入英文单词或短语。'); return }
     if (!/^[a-z][a-z '-]*[a-z]$|^[a-z]$/i.test(term) || term.length > 56) { setMessage('请输入不超过 56 个字符的英文单词或短语。'); return }
@@ -308,21 +235,25 @@ function App() {
     setBusy(true); setMessage(''); setManualTerm(''); setManualMeaning('')
     try {
       const result = await lookup(term)
-      if (result) { updateEntries([result, ...entries]); setInput(''); setMessage(`已添加 “${term}”`); setSelected(term) }
+      if (store.contextRef.current !== owner) return
+      if (result && store.putWord(result)) { setInput(''); setMessage(`已添加 “${term}”`); setSelected(term) }
       else { setManualTerm(term); setMessage('词典暂未收录，可填写中文释义后保存。') }
-    } catch { setMessage('词典加载失败，请检查网络后重试。') }
-    finally { setBusy(false) }
+    } catch { if (store.contextRef.current === owner) setMessage('词典加载失败，请检查网络后重试。') }
+    finally { if (store.contextRef.current === owner) setBusy(false) }
   }
 
   function addManually() {
+    if (!store.canEdit) return
     const meaning = manualMeaning.trim()
     if (!meaning) { setMessage('请先填写简体中文释义。'); return }
     const entry: VocabEntry = { term: manualTerm, meaning, translations: [meaning], parts: [manualTerm.includes(' ') ? 'phrase' : 'word'], uk: { ipa: '', audio: '' }, us: { ipa: '', audio: '' }, forms: [], examples: [], sourceUrl: '', addedAt: Date.now() }
-    updateEntries([entry, ...entries]); setInput(''); setManualTerm(''); setManualMeaning(''); setMessage(`已添加 “${entry.term}”`); setSelected(entry.term)
+    if (!store.putWord(entry)) return
+     setInput(''); setManualTerm(''); setManualMeaning(''); setMessage(`已添加 “${entry.term}”`); setSelected(entry.term)
   }
 
   function removeWord(term: string) {
-    updateEntries(entries.filter((entry) => entry.term !== term))
+    const entry = entries.find(item => item.term === term)
+    if (!entry || !store.putWord(entry, true)) return
     setSelected(null)
     setMessage(`已从词库移除 “${term}”`)
   }
@@ -331,6 +262,7 @@ function App() {
     <header className="site-header">
       <div className="header-inner"><a className="logo" href="#vocab"><span className="logo-mark"><Icon name="book" size={21} /></span><span>词间 <small>VOCAB NOTEBOOK</small></span></a><nav className="site-nav" aria-label="页面导航"><a className={view === 'vocab' ? 'active' : ''} href="#vocab" aria-current={view === 'vocab' ? 'page' : undefined}>词库</a><a className={view === 'quiz' ? 'active' : ''} href="#quiz" aria-current={view === 'quiz' ? 'page' : undefined}>测验与卡片</a><a className={view === 'study' ? 'active' : ''} href="#study" aria-current={view === 'study' ? 'page' : undefined}>学习记录</a></nav><span className="header-count">已收藏 <strong>{entries.length}</strong> 词</span></div>
     </header>
+    <AccountControls store={store} beforeAccountChange={study.finish} />
 
     {view === 'vocab' && <main id="vocab" className="main-content" onPointerDownCapture={(event) => { if ((event.target as HTMLElement).closest('button,input,a')) study.recordActivity() }} onKeyDownCapture={() => study.recordActivity()} onInputCapture={() => study.recordActivity()} onScrollCapture={() => study.recordActivity()}>
       <section className="intro">
@@ -340,7 +272,7 @@ function App() {
         <form className="add-form" onSubmit={(event) => { event.preventDefault(); void addWord() }}>
           <label className="sr-only" htmlFor="new-word">英文单词或短语</label>
           <input id="new-word" value={input} onChange={(event) => { setInput(event.target.value); setManualTerm(''); setMessage('') }} placeholder="输入单词或短语，例如 take a break" autoComplete="off" />
-          <button type="submit" disabled={busy}><Icon name="plus" size={19} />{busy ? '查询中…' : '加入词库'}</button>
+          <button type="submit" disabled={busy || !store.canEdit}><Icon name="plus" size={19} />{busy ? '查询中…' : '加入词库'}</button>
         </form>
         {message && <p className="form-message" role="status">{message}</p>}
         {manualTerm && <form className="manual-form" onSubmit={(event) => { event.preventDefault(); addManually() }}><label htmlFor="manual-meaning">为 “{manualTerm}” 填写简体中文释义</label><div><input id="manual-meaning" value={manualMeaning} onChange={(event) => setManualMeaning(event.target.value)} placeholder="例如：休息一下" /><button type="submit">保存</button></div></form>}
@@ -354,11 +286,11 @@ function App() {
       </section>
     </main>}
     {view === 'study' && <StudyPage tracker={study} />}
-    {view === 'quiz' && <QuizPage entries={entries} onPlay={(entry, accent) => { const full = entries.find((item) => item.term === entry.term); if (full) play(full, accent) }} onActivity={study.recordActivity} />}
+    {view === 'quiz' && <QuizPage progress={store.progress} onComplete={store.finishRound} canEdit={store.canEdit} entries={entries} onPlay={(entry, accent) => { const full = entries.find((item) => item.term === entry.term); if (full) play(full, accent) }} onActivity={study.recordActivity} />}
 
     <footer><div><span>词间</span> · 把语言一点点收藏起来</div><div>词典：<a href="https://github.com/skywind3000/ECDICT" target="_blank" rel="noreferrer">ECDICT</a> · <a href="https://github.com/open-dict-data/ipa-dict" target="_blank" rel="noreferrer">ipa-dict</a> · <a href="https://dictionaryapi.dev/" target="_blank" rel="noreferrer">Dictionary API</a> · <a href="https://tatoeba.org/" target="_blank" rel="noreferrer">Tatoeba</a></div></footer>
 
-    {active && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><aside className="details-panel" onPointerDownCapture={() => study.recordActivity()} onKeyDownCapture={() => study.recordActivity()} onScrollCapture={() => study.recordActivity()} role="dialog" aria-modal="true" aria-labelledby="detail-title"><div className="panel-head"><span>词汇详情 / WORD DETAILS</span><button onClick={() => setSelected(null)} aria-label="关闭详情"><Icon name="close" /></button></div><div className="panel-body"><div className="detail-hero"><div className="detail-kicker">已收藏 · {new Date(active.addedAt).toLocaleDateString('zh-CN')}</div><h2 id="detail-title">{active.term}</h2><div className="detail-parts">{active.parts.map((part) => <span key={part}>{posLabels[part] ?? part}</span>)}</div><p>{active.meaning}</p></div><div className="detail-section"><h3>发音 <small>PRONUNCIATION</small></h3><div className="detail-sounds">{(['uk', 'us'] as Accent[]).map((accent) => <div key={accent}><span>{accent === 'uk' ? '🇬🇧 英式' : '🇺🇸 美式'}</span><strong>{active[accent].ipa || '暂无音标'}</strong><button onClick={() => { study.recordActivity(active.term); play(active, accent) }} aria-label={`播放 ${active.term} ${accent === 'uk' ? '英式' : '美式'}发音`}><Icon name="sound" size={19} /></button></div>)}</div><p className="detail-note">无录音时使用设备语音朗读，声音取决于浏览器。短语音标可能由各单词音标组合。</p></div><div className="detail-section"><h3>词性与释义 <small>MEANINGS</small></h3><div className="translation-list">{active.translations.map((translation, index) => <p key={`${index}-${translation}`}>{translation}</p>)}</div></div>{active.usageNotes?.length ? <div className="detail-section"><h3>特别用法 <small>USAGE</small></h3><div className="usage-notes">{active.usageNotes.map((note, index) => <div className="usage-note" key={`${index}-${note.label}`}><span>{note.label}</span><p>{note.meaning}</p><blockquote>{note.example}<small>{note.exampleMeaning}</small></blockquote><a href={note.sourceUrl} target="_blank" rel="noreferrer">查看用法来源</a></div>)}</div></div> : null}{active.forms.length > 0 && <div className="detail-section"><h3>词形变化 <small>WORD FORMS</small></h3><div className="form-grid">{active.forms.map((form) => <div key={form.label}><span>{form.label}</span><strong>{form.value}</strong></div>)}</div></div>}<div className="detail-section"><h3>例句与表达 <small>EXAMPLES</small></h3>{active.examples.length ? <ol className="example-list">{active.examples.map((example, index) => <li key={`${index}-${example.text}`}>{example.text}{example.url && <a href={example.url} target="_blank" rel="noreferrer">{example.author ? `来源：${example.author}` : '来源'}</a>}</li>)}</ol> : <p className="no-example">这条词目暂时没有可用例句。</p>}</div>{active.sourceUrl && <a className="source-link" href={active.sourceUrl} target="_blank" rel="noreferrer">查看词典来源 <Icon name="arrow" size={15} /></a>}</div><div className="panel-foot"><button className="remove-button" onClick={() => removeWord(active.term)}><Icon name="trash" size={17} /> 从词库移除</button><button className="panel-done" onClick={() => setSelected(null)}>完成</button></div></aside></div>}
+    {active && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><aside className="details-panel" onPointerDownCapture={() => study.recordActivity()} onKeyDownCapture={() => study.recordActivity()} onScrollCapture={() => study.recordActivity()} role="dialog" aria-modal="true" aria-labelledby="detail-title"><div className="panel-head"><span>词汇详情 / WORD DETAILS</span><button onClick={() => setSelected(null)} aria-label="关闭详情"><Icon name="close" /></button></div><div className="panel-body"><div className="detail-hero"><div className="detail-kicker">已收藏 · {new Date(active.addedAt).toLocaleDateString('zh-CN')}</div><h2 id="detail-title">{active.term}</h2><div className="detail-parts">{active.parts.map((part) => <span key={part}>{posLabels[part] ?? part}</span>)}</div><p>{active.meaning}</p></div><div className="detail-section"><h3>发音 <small>PRONUNCIATION</small></h3><div className="detail-sounds">{(['uk', 'us'] as Accent[]).map((accent) => <div key={accent}><span>{accent === 'uk' ? '🇬🇧 英式' : '🇺🇸 美式'}</span><strong>{active[accent].ipa || '暂无音标'}</strong><button onClick={() => { study.recordActivity(active.term); play(active, accent) }} aria-label={`播放 ${active.term} ${accent === 'uk' ? '英式' : '美式'}发音`}><Icon name="sound" size={19} /></button></div>)}</div><p className="detail-note">无录音时使用设备语音朗读，声音取决于浏览器。短语音标可能由各单词音标组合。</p></div><div className="detail-section"><h3>词性与释义 <small>MEANINGS</small></h3><div className="translation-list">{active.translations.map((translation, index) => <p key={`${index}-${translation}`}>{translation}</p>)}</div></div>{active.usageNotes?.length ? <div className="detail-section"><h3>特别用法 <small>USAGE</small></h3><div className="usage-notes">{active.usageNotes.map((note, index) => <div className="usage-note" key={`${index}-${note.label}`}><span>{note.label}</span><p>{note.meaning}</p><blockquote>{note.example}<small>{note.exampleMeaning}</small></blockquote><a href={note.sourceUrl} target="_blank" rel="noreferrer">查看用法来源</a></div>)}</div></div> : null}{active.forms.length > 0 && <div className="detail-section"><h3>词形变化 <small>WORD FORMS</small></h3><div className="form-grid">{active.forms.map((form) => <div key={form.label}><span>{form.label}</span><strong>{form.value}</strong></div>)}</div></div>}<div className="detail-section"><h3>例句与表达 <small>EXAMPLES</small></h3>{active.examples.length ? <ol className="example-list">{active.examples.map((example, index) => <li key={`${index}-${example.text}`}>{example.text}{example.url && <a href={example.url} target="_blank" rel="noreferrer">{example.author ? `来源：${example.author}` : '来源'}</a>}</li>)}</ol> : <p className="no-example">这条词目暂时没有可用例句。</p>}</div>{active.sourceUrl && <a className="source-link" href={active.sourceUrl} target="_blank" rel="noreferrer">查看词典来源 <Icon name="arrow" size={15} /></a>}</div><div className="panel-foot"><button disabled={!store.canEdit} className="remove-button" onClick={() => removeWord(active.term)}><Icon name="trash" size={17} /> 从词库移除</button><button className="panel-done" onClick={() => setSelected(null)}>完成</button></div></aside></div>}
   </div>
 }
 
