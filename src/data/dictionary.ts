@@ -40,11 +40,13 @@ export function meaningGroups(translations: string[], parts: string[] = []): Mea
   return [...groups.values()]
 }
 
+export function serializeMeaning(part: string, sense: MeaningSense): string {
+  const code = sense.label.startsWith('及物 /') ? 'vt/vi' : sense.label.startsWith('及物') ? 'vt' : sense.label.startsWith('不及物') ? 'vi' : Object.keys(abbreviations).find(key => abbreviations[key] === part)
+  return code ? `${code}. ${sense.text.trim()}` : sense.text.trim()
+}
+
 export function parseTranslations(raw: string): string[] {
-  return meaningGroups([raw]).flatMap(group => group.senses.map(sense => {
-    const code = sense.label.startsWith('及物 /') ? 'vt/vi' : sense.label.startsWith('及物') ? 'vt' : sense.label.startsWith('不及物') ? 'vi' : Object.keys(abbreviations).find(key => abbreviations[key] === group.part)
-    return code ? `${code}. ${sense.text}` : sense.text
-  }))
+  return meaningGroups([raw]).flatMap(group => group.senses.map(sense => serializeMeaning(group.part, sense)))
 }
 
 export type ApiMeaning = { partOfSpeech?: string; definitions?: { example?: string }[] }

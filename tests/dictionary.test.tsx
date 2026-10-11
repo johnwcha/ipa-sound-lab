@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { dictionaryExamples, entryParts, exampleGroups, meaningGroups, meaningSummary, parseTranslations } from '../src/data/dictionary'
 import { WordExamples, WordMeanings } from '../src/WordDefinitions'
 import type { VocabEntry } from '../src/data/model'
@@ -11,6 +11,45 @@ const raw = 'vt. 剽窃；偷偷地做；偷窃；vi. 窃取；偷偷地行动�
 const entry: VocabEntry = { term: 'steal', parts: ['verb', 'noun'], translations: [raw], uk: { ipa: '', audio: '' }, us: { ipa: '', audio: '' }, forms: [], examples: [], sourceUrl: '', addedAt: 1 }
 
 describe('dictionary meanings and examples', () => {
+  it('saves edited text and deleted items to the same translations while retaining vt and noun markers', () => {
+    const save = vi.fn((_entry: VocabEntry) => true)
+    render(<WordMeanings entry={entry} canEdit onSave={save} />)
+    fireEvent.click(screen.getByRole('button', { name: '编辑释义' }))
+    fireEvent.change(screen.getByLabelText('及物动词 vt.'), { target: { value: '偷窃；窃取' } })
+    fireEvent.click(screen.getByRole('button', { name: '删除不及物动词 vi.' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存释义' }))
+    const saved = save.mock.calls[0][0] as VocabEntry
+    expect(saved.translations).toEqual(['vt. 偷窃；窃取', 'n. [口]偷窃；便宜货；偷垒；[篮球]断球'])
+    expect(saved.parts).toEqual(['verb', 'noun'])
+    expect(saved).not.toHaveProperty('meaning')
+  })
+  it('cancels without writing, blocks empty text, and allows deleting every item', () => {
+    const save = vi.fn((_entry: VocabEntry) => true)
+    render(<WordMeanings entry={entry} canEdit onSave={save} />)
+    fireEvent.click(screen.getByRole('button', { name: '编辑释义' }))
+    fireEvent.change(screen.getByLabelText('及物动词 vt.'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存释义' }))
+    expect(screen.getByRole('alert').textContent).toContain('空白')
+    expect(save).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    fireEvent.click(screen.getByRole('button', { name: '编辑释义' }))
+    for (const name of ['删除及物动词 vt.', '删除不及物动词 vi.', '删除名词']) fireEvent.click(screen.getByRole('button', { name }))
+    fireEvent.click(screen.getByRole('button', { name: '保存释义' }))
+    expect(save.mock.calls[0][0].translations).toEqual([])
+    expect(save.mock.calls[0][0].parts).toEqual([])
+  })
+  it('blocks saves when another device updates the translations and respects edit restrictions', () => {
+    const save = vi.fn((_entry: VocabEntry) => true)
+    const view = render(<WordMeanings entry={entry} canEdit onSave={save} />)
+    fireEvent.click(screen.getByRole('button', { name: '编辑释义' }))
+    view.rerender(<WordMeanings entry={{ ...entry, translations: ['n. 云端新释义'] }} canEdit onSave={save} />)
+    fireEvent.click(screen.getByRole('button', { name: '保存释义' }))
+    expect(screen.getByRole('alert').textContent).toContain('其他页面或设备')
+    expect(save).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    view.rerender(<WordMeanings entry={entry} canEdit={false} onSave={save} />)
+    expect((screen.getByRole('button', { name: '编辑释义' }) as HTMLButtonElement).disabled).toBe(true)
+  })
   it('derives summaries from translations and strips stale summaries from old records and backups', () => {
     const old = { ...entry, meaning: 'stale vi. n. text' }
     expect(meaningSummary(old)).toBe('动词：剽窃；偷偷地做；偷窃；窃取；偷偷地行动；[棒球]偷垒 ｜ 名词：[口]偷窃；便宜货；偷垒；[篮球]断球')
