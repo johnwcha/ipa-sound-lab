@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { dictionaryExamples, entryParts, exampleGroups, meaningGroups, meaningSummary, parseTranslations } from '../src/data/dictionary'
 import { WordExamples, WordMeanings } from '../src/WordDefinitions'
 import type { VocabEntry } from '../src/data/model'
@@ -11,6 +11,24 @@ const raw = 'vt. 剽窃；偷偷地做；偷窃；vi. 窃取；偷偷地行动�
 const entry: VocabEntry = { term: 'steal', parts: ['verb', 'noun'], translations: [raw], uk: { ipa: '', audio: '' }, us: { ipa: '', audio: '' }, forms: [], examples: [], sourceUrl: '', addedAt: 1 }
 
 describe('dictionary meanings and examples', () => {
+  it('places examples inside their matching meanings and keeps unknown or removed word classes separate', () => {
+    const examples = [
+      { text: 'Do not steal my bike.', author: 'Dictionary', url: 'https://example.com/verb', partOfSpeech: 'verb' },
+      { text: 'This bike was a steal.', author: '', url: '', partOfSpeech: 'noun' },
+      { text: 'An unclassified sentence.', author: '', url: '', partOfSpeech: 'unclassified' },
+    ]
+    const view = render(<WordMeanings entry={{ ...entry, examples }} />)
+    const verb = screen.getByRole('region', { name: '动词释义与例句' })
+    const noun = screen.getByRole('region', { name: '名词释义与例句' })
+    expect(within(verb).getByText('Do not steal my bike.')).toBeTruthy()
+    expect(within(noun).getByText('This bike was a steal.')).toBeTruthy()
+    expect(within(verb).queryByText('This bike was a steal.')).toBeNull()
+    expect(within(noun).queryByText('An unclassified sentence.')).toBeNull()
+    expect(within(verb).getByRole('link', { name: '来源：Dictionary' }).getAttribute('href')).toBe('https://example.com/verb')
+    view.rerender(<WordMeanings entry={{ ...entry, translations: ['vt. 偷窃'], parts: ['verb'], examples }} />)
+    expect(screen.queryByRole('region', { name: '名词释义与例句' })).toBeNull()
+    expect(screen.getByText('以下名词例句没有对应的已保存释义。')).toBeTruthy()
+  })
   it('saves edited text and deleted items to the same translations while retaining vt and noun markers', () => {
     const save = vi.fn((_entry: VocabEntry) => true)
     render(<WordMeanings entry={entry} canEdit onSave={save} />)

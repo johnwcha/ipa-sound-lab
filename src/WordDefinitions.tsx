@@ -30,22 +30,32 @@ export function WordMeanings({ entry, canEdit = false, onSave }: { entry: VocabE
         <div className="meaning-edit-heading"><label htmlFor={`meaning-${item.id}`}>{item.label || posLabels[item.part]}</label><button type="button" disabled={!canEdit} aria-label={`删除${item.label || posLabels[item.part]}`} onClick={() => setDraft(draft.filter(row => row.id !== item.id))}>删除</button></div>
         <textarea id={`meaning-${item.id}`} maxLength={3900} rows={3} disabled={!canEdit} value={item.text} onChange={event => setDraft(draft.map(row => row.id === item.id ? { ...row, text: event.target.value } : row))} />
       </div>)}
+      <WordExamples entry={entry} part={part} />
     </section>)}
     {!draft.length && <p className="no-example">所有释义已删除；保存后该词暂不参与测验。</p>}
     <button className="meaning-add" type="button" disabled={!canEdit} onClick={() => setDraft([...draft, { id: Math.max(-1, ...draft.map(item => item.id)) + 1, part: 'unclassified', label: '', text: '' }])}>添加释义</button>
     {error && <p role="alert" className="meaning-edit-error">{error}</p>}
     <div className="meaning-edit-actions"><button type="button" onClick={() => { setDraft(null); setError('') }}>取消</button><button type="button" disabled={!canEdit} onClick={save}>保存释义</button></div>
   </div>
-  return <>{onSave && <div className="meaning-edit-toolbar"><button type="button" disabled={!canEdit} onClick={start}>编辑释义</button></div>}<div className="translation-list">{meaningGroups(entry.translations, entry.parts).map(group => <section className="meaning-group" key={group.part}>
+  const groups = meaningGroups(entry.translations, entry.parts)
+  const unmatched = exampleGroups(entry).filter(group => !groups.some(meaning => meaning.part === group.part))
+  return <>{onSave && <div className="meaning-edit-toolbar"><button type="button" disabled={!canEdit} onClick={start}>编辑释义</button></div>}<div className="translation-list">{groups.map(group => <section className="meaning-group" key={group.part} aria-label={`${posLabels[group.part]}释义与例句`}>
     <h4>{posLabels[group.part]}</h4>
     {group.senses.map((sense, index) => <div key={index}>{sense.label && <h5>{sense.label}</h5>}<p>{sense.text}</p></div>)}
-  </section>)}{!entry.translations.length && <p className="no-example">暂无释义，可点击编辑添加。</p>}</div></>
+    <WordExamples entry={entry} part={group.part} />
+  </section>)}{!entry.translations.length && <p className="no-example">暂无释义，可点击编辑添加。</p>}</div>
+    {unmatched.map(group => <div className="unmatched-examples" key={group.part}>
+      {group.part !== 'unclassified' && <p className="example-note">以下{posLabels[group.part]}例句没有对应的已保存释义。</p>}
+      <WordExamples entry={entry} part={group.part} />
+    </div>)}
+  </>
 }
 
-export function WordExamples({ entry }: { entry: VocabEntry }) {
-  return entry.examples.length ? <>{exampleGroups(entry).map(group => <section className="example-group" key={group.part}>
-    <h4>{group.part === 'unclassified' ? '词性未确认的例句' : `${posLabels[group.part]}例句`}</h4>
+export function WordExamples({ entry, part }: { entry: VocabEntry; part?: string }) {
+  const groups = exampleGroups(entry).filter(group => part === undefined || group.part === part)
+  return groups.length ? <>{groups.map(group => <section className="example-group" key={group.part}>
+    <h5>{group.part === 'unclassified' ? '词性未确认的例句' : `${posLabels[group.part]}例句`}</h5>
     {group.part === 'unclassified' && <p className="example-note">来源未标注此句中该词的词性。</p>}
     <ol className="example-list">{group.examples.map((example, index) => <li key={`${index}-${example.text}`}>{example.text}{example.url && <a href={example.url} target="_blank" rel="noreferrer">{example.author ? `来源：${example.author}` : '来源'}</a>}</li>)}</ol>
-  </section>)}</> : <p className="no-example">这条词目暂时没有可用例句。</p>
+  </section>)}</> : null
 }
