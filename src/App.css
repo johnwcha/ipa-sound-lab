@@ -40,3 +40,8 @@ footer{min-height:98px;border-top:1px solid var(--line);max-width:1190px;margin:
 @media(min-width:640px){.header-inner{min-height:78px;padding:0 32px}.main-content{padding:0 32px}.intro{padding:76px 0 83px}.intro h1>span{display:inline}.intro h1{font-size:64px}.add-form{flex-direction:row;border-radius:13px;padding:6px}.add-form input{height:52px;padding-left:17px}.add-form button{height:52px;padding:0 24px}.library-tools{flex-direction:row;align-items:center;justify-content:space-between}.search-field{width:230px}.vocab-card{padding:19px 23px}.card-main{gap:17px}.term-line h3{font-size:31px}.phonetics{gap:8px}.details-button{width:56px;height:55px}.panel-body{padding:31px}.panel-head,.panel-foot{padding-left:31px;padding-right:31px}footer{padding-left:32px;padding-right:32px;flex-direction:row;align-items:center;justify-content:space-between}}
 @media(min-width:960px){.intro{padding-top:89px;padding-bottom:99px}.intro h1{font-size:70px}.library{padding-bottom:115px}.vocab-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.vocab-card{min-height:177px}.section-title h2{font-size:33px}.card-main{gap:10px}.term-line h3{font-size:29px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+
+.meaning-group + .meaning-group,.example-group + .example-group{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+.meaning-group h4,.example-group h4{margin:0 0 12px;color:var(--green);font-size:16px;font-weight:700}
+.meaning-group h5{margin:12px 0 6px;color:#627268;font-size:12px;font-weight:600}
+.example-note{color:#829487;font-size:11px;margin:0 0 12px}

@@ -8,6 +8,8 @@ import { usePersonalData } from './data/usePersonalData'
 import { enrichEntry, loadEntries } from './data/guestVocabulary'
 import type { PersonalStore } from './data/usePersonalData'
 import type { Accent, Form, VocabEntry } from './data/model'
+import { dictionaryExamples, entryParts, meaningGroups, parseTranslations, posLabels } from './data/dictionary'
+import { WordExamples, WordMeanings } from './WordDefinitions'
 type Example = VocabEntry['examples'][number]
 type Pronunciation = VocabEntry['uk']
 
@@ -19,11 +21,6 @@ type ApiEntry = {
 }
 
 const suggestions = ['apple', 'take', 'look up']
-const posLabels: Record<string, string> = {
-  noun: '名词', verb: '动词', adjective: '形容词', adverb: '副词', pronoun: '代词',
-  preposition: '介词', conjunction: '连词', interjection: '感叹词', exclamation: '感叹词',
-  determiner: '限定词', phrase: '短语', numeral: '数词', auxiliary: '助动词',
-}
 const exchangeLabels: Record<string, string> = {
   s: '复数', p: '过去式', d: '过去分词', i: '现在分词', '3': '第三人称单数',
 }
@@ -85,7 +82,9 @@ async function getEnglishEntry(term: string): Promise<ApiEntry | null> {
       const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(term)}`, { signal: controller.signal })
       if (!response.ok) return null
       const data: unknown = await response.json()
-      return Array.isArray(data) ? (data[0] as ApiEntry) : null
+      if (!Array.isArray(data) || !data.length) return null
+      const entries = data as ApiEntry[]
+      return { phonetics: entries.flatMap(entry => entry.phonetics ?? []), meanings: entries.flatMap(entry => entry.meanings ?? []), sourceUrls: entries.flatMap(entry => entry.sourceUrls ?? []) }
     } finally { window.clearTimeout(timer) }
   } catch { return null }
 }
@@ -108,19 +107,12 @@ async function getTatoebaExamples(term: string): Promise<Example[]> {
   } catch { return [] }
 }
 
-function parseTranslations(raw: string): string[] {
-  return raw.split(/\n|\\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith('[')).slice(0, 6)
-}
-
 function parseParts(row: DictionaryRow, api: ApiEntry | null, term: string): string[] {
   const fromApi = api?.meanings?.map((item) => item.partOfSpeech?.toLowerCase() ?? '').filter(Boolean) ?? []
-  const fromTranslation = row[0].match(/(?:^|\n|\\n)\s*(?:n|v|vt|vi|adj|adv|prep|pron|conj|interj)\./g)?.map((match) => {
-    const key = match.replace(/\\n|\n/g, '').trim().replace('.', '')
-    return key === 'n' ? 'noun' : ['v', 'vt', 'vi'].includes(key) ? 'verb' : key === 'adj' ? 'adjective' : key === 'adv' ? 'adverb' : key === 'prep' ? 'preposition' : key === 'pron' ? 'pronoun' : key === 'conj' ? 'conjunction' : 'interjection'
-  }) ?? []
+  const fromTranslation = meaningGroups([row[0]]).map(group => group.part).filter(part => part !== 'unclassified')
   const fromPos = row[1].split('/').map((part) => part.split(':')[0]).map((key) => key === 'n' ? 'noun' : key === 'v' ? 'verb' : key === 'a' ? 'adjective' : key === 'r' ? 'adverb' : '')
   const combined = (fromTranslation.length ? fromTranslation : fromApi.length ? fromApi : fromPos).filter(Boolean)
-  return [...new Set(combined.length ? combined : [term.includes(' ') ? 'phrase' : 'word'])].slice(0, 4)
+  return [...new Set(combined.length ? combined : [term.includes(' ') ? 'phrase' : 'word'])]
 }
 
 function parseForms(raw: string, parts: string[]): Form[] {
@@ -147,8 +139,8 @@ async function lookup(term: string): Promise<VocabEntry | null> {
   const [api, tatoeba] = await Promise.all([getEnglishEntry(term), getTatoebaExamples(term)])
   const parts = parseParts(row, api, term)
   const translations = parseTranslations(row[0])
-  const apiExamples = [...new Set((api?.meanings ?? []).flatMap((meaning) => meaning.definitions ?? []).map((definition) => definition.example?.trim() ?? '').filter(Boolean))].slice(0, 3).map((text) => ({ text, author: 'Wiktionary', url: api?.sourceUrls?.[0] ?? '' }))
-  const examples = tatoeba.length ? tatoeba : apiExamples
+  const apiExamples = dictionaryExamples(api?.meanings ?? [], api?.sourceUrls?.[0] ?? '')
+  const examples = [...apiExamples, ...tatoeba.filter(example => !apiExamples.some(item => item.text === example.text)).map(example => ({ ...example, partOfSpeech: 'unclassified' }))]
   return enrichEntry({
     term, meaning: translations[0]?.replace(/^(?:n|v|vt|vi|adj|adv|prep|pron|conj|interj)\.\s*/i, '').slice(0, 88) ?? row[0].slice(0, 88),
     translations, parts, ...parsePronunciations(api, term, offline), forms: parseForms(row[2], parts), examples,
@@ -179,7 +171,7 @@ function App() {
 }
 
 function Notebook({ store }: { store: PersonalStore }) {
-  const entries = store.entries
+  const entries = useMemo(() => store.entries.map(entry => ({ ...entry, parts: entryParts(entry) })), [store.entries])
   const study = useStudyTracker(store)
   const [view, setView] = useState<'vocab' | 'study' | 'quiz'>(() => window.location.hash === '#study' ? 'study' : window.location.hash === '#quiz' ? 'quiz' : 'vocab')
   const [input, setInput] = useState('')
@@ -290,7 +282,7 @@ function Notebook({ store }: { store: PersonalStore }) {
 
     <footer><div><span>词间</span> · 把语言一点点收藏起来</div><div>词典：<a href="https://github.com/skywind3000/ECDICT" target="_blank" rel="noreferrer">ECDICT</a> · <a href="https://github.com/open-dict-data/ipa-dict" target="_blank" rel="noreferrer">ipa-dict</a> · <a href="https://dictionaryapi.dev/" target="_blank" rel="noreferrer">Dictionary API</a> · <a href="https://tatoeba.org/" target="_blank" rel="noreferrer">Tatoeba</a></div></footer>
 
-    {active && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><aside className="details-panel" onPointerDownCapture={() => study.recordActivity()} onKeyDownCapture={() => study.recordActivity()} onScrollCapture={() => study.recordActivity()} role="dialog" aria-modal="true" aria-labelledby="detail-title"><div className="panel-head"><span>词汇详情 / WORD DETAILS</span><button onClick={() => setSelected(null)} aria-label="关闭详情"><Icon name="close" /></button></div><div className="panel-body"><div className="detail-hero"><div className="detail-kicker">已收藏 · {new Date(active.addedAt).toLocaleDateString('zh-CN')}</div><h2 id="detail-title">{active.term}</h2><div className="detail-parts">{active.parts.map((part) => <span key={part}>{posLabels[part] ?? part}</span>)}</div><p>{active.meaning}</p></div><div className="detail-section"><h3>发音 <small>PRONUNCIATION</small></h3><div className="detail-sounds">{(['uk', 'us'] as Accent[]).map((accent) => <div key={accent}><span>{accent === 'uk' ? '🇬🇧 英式' : '🇺🇸 美式'}</span><strong>{active[accent].ipa || '暂无音标'}</strong><button onClick={() => { study.recordActivity(active.term); play(active, accent) }} aria-label={`播放 ${active.term} ${accent === 'uk' ? '英式' : '美式'}发音`}><Icon name="sound" size={19} /></button></div>)}</div><p className="detail-note">无录音时使用设备语音朗读，声音取决于浏览器。短语音标可能由各单词音标组合。</p></div><div className="detail-section"><h3>词性与释义 <small>MEANINGS</small></h3><div className="translation-list">{active.translations.map((translation, index) => <p key={`${index}-${translation}`}>{translation}</p>)}</div></div>{active.usageNotes?.length ? <div className="detail-section"><h3>特别用法 <small>USAGE</small></h3><div className="usage-notes">{active.usageNotes.map((note, index) => <div className="usage-note" key={`${index}-${note.label}`}><span>{note.label}</span><p>{note.meaning}</p><blockquote>{note.example}<small>{note.exampleMeaning}</small></blockquote><a href={note.sourceUrl} target="_blank" rel="noreferrer">查看用法来源</a></div>)}</div></div> : null}{active.forms.length > 0 && <div className="detail-section"><h3>词形变化 <small>WORD FORMS</small></h3><div className="form-grid">{active.forms.map((form) => <div key={form.label}><span>{form.label}</span><strong>{form.value}</strong></div>)}</div></div>}<div className="detail-section"><h3>例句与表达 <small>EXAMPLES</small></h3>{active.examples.length ? <ol className="example-list">{active.examples.map((example, index) => <li key={`${index}-${example.text}`}>{example.text}{example.url && <a href={example.url} target="_blank" rel="noreferrer">{example.author ? `来源：${example.author}` : '来源'}</a>}</li>)}</ol> : <p className="no-example">这条词目暂时没有可用例句。</p>}</div>{active.sourceUrl && <a className="source-link" href={active.sourceUrl} target="_blank" rel="noreferrer">查看词典来源 <Icon name="arrow" size={15} /></a>}</div><div className="panel-foot"><button disabled={!store.canEdit} className="remove-button" onClick={() => removeWord(active.term)}><Icon name="trash" size={17} /> 从词库移除</button><button className="panel-done" onClick={() => setSelected(null)}>完成</button></div></aside></div>}
+    {active && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><aside className="details-panel" onPointerDownCapture={() => study.recordActivity()} onKeyDownCapture={() => study.recordActivity()} onScrollCapture={() => study.recordActivity()} role="dialog" aria-modal="true" aria-labelledby="detail-title"><div className="panel-head"><span>词汇详情 / WORD DETAILS</span><button onClick={() => setSelected(null)} aria-label="关闭详情"><Icon name="close" /></button></div><div className="panel-body"><div className="detail-hero"><div className="detail-kicker">已收藏 · {new Date(active.addedAt).toLocaleDateString('zh-CN')}</div><h2 id="detail-title">{active.term}</h2><div className="detail-parts">{active.parts.map((part) => <span key={part}>{posLabels[part] ?? part}</span>)}</div><p>{active.meaning}</p></div><div className="detail-section"><h3>发音 <small>PRONUNCIATION</small></h3><div className="detail-sounds">{(['uk', 'us'] as Accent[]).map((accent) => <div key={accent}><span>{accent === 'uk' ? '🇬🇧 英式' : '🇺🇸 美式'}</span><strong>{active[accent].ipa || '暂无音标'}</strong><button onClick={() => { study.recordActivity(active.term); play(active, accent) }} aria-label={`播放 ${active.term} ${accent === 'uk' ? '英式' : '美式'}发音`}><Icon name="sound" size={19} /></button></div>)}</div><p className="detail-note">无录音时使用设备语音朗读，声音取决于浏览器。短语音标可能由各单词音标组合。</p></div><div className="detail-section"><h3>词性与释义 <small>MEANINGS</small></h3><WordMeanings entry={active} /></div>{active.usageNotes?.length ? <div className="detail-section"><h3>特别用法 <small>USAGE</small></h3><div className="usage-notes">{active.usageNotes.map((note, index) => <div className="usage-note" key={`${index}-${note.label}`}><span>{note.label}</span><p>{note.meaning}</p><blockquote>{note.example}<small>{note.exampleMeaning}</small></blockquote><a href={note.sourceUrl} target="_blank" rel="noreferrer">查看用法来源</a></div>)}</div></div> : null}{active.forms.length > 0 && <div className="detail-section"><h3>词形变化 <small>WORD FORMS</small></h3><div className="form-grid">{active.forms.map((form) => <div key={form.label}><span>{form.label}</span><strong>{form.value}</strong></div>)}</div></div>}<div className="detail-section"><h3>例句与表达 <small>EXAMPLES</small></h3><WordExamples entry={active} /></div>{active.sourceUrl && <a className="source-link" href={active.sourceUrl} target="_blank" rel="noreferrer">查看词典来源 <Icon name="arrow" size={15} /></a>}</div><div className="panel-foot"><button disabled={!store.canEdit} className="remove-button" onClick={() => removeWord(active.term)}><Icon name="trash" size={17} /> 从词库移除</button><button className="panel-done" onClick={() => setSelected(null)}>完成</button></div></aside></div>}
   </div>
 }
 

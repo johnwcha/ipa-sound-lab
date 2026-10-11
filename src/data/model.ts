@@ -3,7 +3,7 @@ export type Form = { label: string; value: string }
 export type VocabEntry = {
   term: string; meaning: string; translations: string[]; parts: string[]
   uk: { ipa: string; audio: string }; us: { ipa: string; audio: string }
-  forms: Form[]; examples: { text: string; author: string; url: string }[]
+  forms: Form[]; examples: { text: string; author: string; url: string; partOfSpeech?: string }[]
   usageNotes?: { label: string; meaning: string; example: string; exampleMeaning: string; sourceUrl: string }[]
   sourceUrl: string; addedAt: number
 }
@@ -65,7 +65,7 @@ export function validEntry(value: unknown): value is VocabEntry {
   if (!object(value) || !text(value.term, 56) || !/^[a-z][a-z '-]*[a-z]$|^[a-z]$/.test(value.term) || normalizeTerm(value.term) !== value.term || !text(value.meaning) || !texts(value.parts, 30) || !texts(value.translations, 100) || !number(value.addedAt) || !text(value.sourceUrl)) return false
   if (!object(value.uk) || !object(value.us) || ![value.uk, value.us].every(sound => text(sound.ipa, 500) && text(sound.audio))) return false
   if (!Array.isArray(value.forms) || value.forms.length > 100 || !value.forms.every(form => object(form) && text(form.label) && text(form.value))) return false
-  if (!Array.isArray(value.examples) || value.examples.length > 100 || !value.examples.every(example => object(example) && text(example.text) && text(example.author) && text(example.url))) return false
+  if (!Array.isArray(value.examples) || value.examples.length > 100 || !value.examples.every(example => object(example) && text(example.text) && text(example.author) && text(example.url) && (example.partOfSpeech === undefined || text(example.partOfSpeech, 30)))) return false
   return value.usageNotes === undefined || (Array.isArray(value.usageNotes) && value.usageNotes.length <= 30 && value.usageNotes.every(note => object(note) && ['label', 'meaning', 'example', 'exampleMeaning', 'sourceUrl'].every(key => text(note[key]))))
 }
 export function validProgress(value: unknown): value is Progress {
