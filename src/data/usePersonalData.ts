@@ -4,7 +4,7 @@ import type { User } from 'firebase/auth'
 import { collection, doc, onSnapshot, runTransaction, setDoc, waitForPendingWrites } from 'firebase/firestore'
 import { auth, db, firebaseConfigured, firebaseReady, persistentCacheAvailable } from './firebase'
 import { importCloudData } from './cloudImport'
-import { deriveProgress, emptyData, historyId, mergePersonalData, newId, normalizeTerm, parseRecovery, termId, validImport, validRecord, validRound, validSession } from './model'
+import { canonicalEntry, deriveProgress, emptyData, historyId, mergePersonalData, newId, normalizeTerm, parseRecovery, termId, validImport, validRecord, validRound, validSession } from './model'
 import type { PersonalData, QuizRound, StudySession, SyncStatus, VocabEntry } from './model'
 import { guestKey, loadGuest, readJson, writeJson } from './storage'
 import { acknowledge, journal, readOutbox } from './outbox'
@@ -95,7 +95,8 @@ export function usePersonalData(seed: () => VocabEntry[]) {
     return () => { cancelled = true; stops.forEach(stop => stop()) }
   }, [user, subscriptionVersion])
 
-  const data = user ? cloud : guest
+  const sourceData = user ? cloud : guest
+  const data = useMemo(() => ({ ...sourceData, vocabulary: sourceData.vocabulary.map(record => ({ ...record, entry: canonicalEntry(record.entry) })) }), [sourceData])
   const canEdit = authReady && !busy && (!user || (ready && (online || persistentCacheAvailable)))
   useLayoutEffect(() => { canEditRef.current = canEdit }, [canEdit])
   const progress = useMemo(() => deriveProgress(data.imports, data.rounds), [data.imports, data.rounds])
@@ -141,7 +142,7 @@ export function usePersonalData(seed: () => VocabEntry[]) {
   }
   function putWord(entry: VocabEntry, deleted = false) {
     if (!canEditRef.current || contextRef.current !== scope || !validRecord({ entry, deleted, updatedAt: Date.now() })) return false
-    const record = { entry: { ...entry, term: normalizeTerm(entry.term) }, deleted, updatedAt: Date.now() }
+    const record = { entry: { ...canonicalEntry(entry), term: normalizeTerm(entry.term) }, deleted, updatedAt: Date.now() }
     if (!user) {
       const next = guestRef.current
       commitGuest({ ...next, vocabulary: [...next.vocabulary.filter(row => termId(row.entry.term) !== termId(entry.term)), record] })
@@ -164,7 +165,7 @@ export function usePersonalData(seed: () => VocabEntry[]) {
       await runTransaction(db!, async transaction => {
         const snapshot = await transaction.get(target)
         if (!snapshot.exists() || snapshot.data().deleted || snapshot.data().updatedAt !== expectedUpdatedAt) return
-        transaction.set(target, { entry, deleted: false, updatedAt: Date.now() })
+        transaction.set(target, { entry: canonicalEntry(entry), deleted: false, updatedAt: Date.now() })
       })
     }, user.uid, 'refresh/' + termId(entry.term))
   }

@@ -4,7 +4,7 @@ import { acknowledge, journal, readOutbox, withOutbox } from '../src/data/outbox
 import { emptyData } from '../src/data/model'
 import type { Mutation } from '../src/data/outbox'
 
-const entry = { term: 'apple', meaning: '苹果', translations: ['苹果'], parts: ['noun'], uk: { ipa: '', audio: '' }, us: { ipa: '', audio: '' }, forms: [], examples: [], sourceUrl: '', addedAt: 1 }
+const entry = { term: 'apple', translations: ['苹果'], parts: ['noun'], uk: { ipa: '', audio: '' }, us: { ipa: '', audio: '' }, forms: [], examples: [], sourceUrl: '', addedAt: 1 }
 const mutation = (id: string, deleted = false): Mutation => ({ id, collection: 'vocabulary', documentId: 'apple', value: { entry, deleted, updatedAt: 1 } })
 beforeEach(() => localStorage.clear())
 describe('write recovery journal', () => {

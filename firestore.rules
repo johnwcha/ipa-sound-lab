@@ -9,10 +9,10 @@ service cloud.firestore {
       return value is map && value.keys().hasOnly(['ipa', 'audio']) && text(value.ipa, 500) && text(value.audio, 4000);
     }
     function entry(value) {
-      return value is map && value.keys().hasAll(['term', 'meaning', 'translations', 'parts', 'uk', 'us', 'forms', 'examples', 'sourceUrl', 'addedAt'])
+      return value is map && value.keys().hasAll(['term', 'translations', 'parts', 'uk', 'us', 'forms', 'examples', 'sourceUrl', 'addedAt'])
         && value.keys().hasOnly(['term', 'meaning', 'translations', 'parts', 'uk', 'us', 'forms', 'examples', 'usageNotes', 'sourceUrl', 'addedAt'])
         && text(value.term, 56) && value.term.size() > 0 && value.term.matches("^[a-z][a-z '-]*[a-z]$|^[a-z]$")
-        && text(value.meaning, 4000) && strings(value.translations, 100) && strings(value.parts, 30)
+        && (!('meaning' in value) || text(value.meaning, 4000)) && strings(value.translations, 100) && strings(value.parts, 30)
         && sound(value.uk) && sound(value.us) && strings(value.forms, 100) && strings(value.examples, 100)
         && (!('usageNotes' in value) || strings(value.usageNotes, 30)) && text(value.sourceUrl, 4000) && nonnegative(value.addedAt);
     }

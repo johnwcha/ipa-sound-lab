@@ -67,6 +67,13 @@ export function entryParts(entry: Pick<VocabEntry, 'translations' | 'parts'>): s
   return parsed.length ? parsed : entry.parts
 }
 
+export function meaningSummary(entry: Pick<VocabEntry, 'translations' | 'parts'>): string {
+  return meaningGroups(entry.translations, entry.parts).map(group => {
+    const text = group.senses.map(sense => sense.text).join('；')
+    return group.part === 'unclassified' ? text : `${posLabels[group.part]}：${text}`
+  }).join(' ｜ ')
+}
+
 export function exampleGroups(entry: Pick<VocabEntry, 'examples' | 'parts'> & Partial<Pick<VocabEntry, 'translations'>>) {
   const groups = new Map<string, VocabEntry['examples']>()
   const parts = entry.translations ? entryParts({ translations: entry.translations, parts: entry.parts }) : entry.parts

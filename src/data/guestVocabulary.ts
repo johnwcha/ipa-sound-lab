@@ -1,4 +1,5 @@
 import type { Form, VocabEntry } from './model'
+import { canonicalEntry } from './model'
 import { readJson } from './storage'
 
 const storageKey = 'ipa-sound-lab-vocabulary-v1'
@@ -11,17 +12,17 @@ const appleUsageNote: NonNullable<VocabEntry['usageNotes']>[number] = {
   sourceUrl: 'https://en.wiktionary.org/wiki/apple',
 }
 
-export function enrichEntry(entry: VocabEntry): VocabEntry {
+export function enrichEntry(stored: VocabEntry): VocabEntry {
+  const entry = canonicalEntry(stored)
   if (entry.term.toLowerCase() !== 'apple' || entry.usageNotes?.length) return entry
-  const meaning = /^(?:苹果\s*[,，]\s*家伙|家伙)$/.test(entry.meaning.trim()) ? '苹果' : entry.meaning
   const translations = (Array.isArray(entry.translations) ? entry.translations : ['n. 苹果']).map((line) => line.replace(/([,，]\s*)?家伙(?=$|\n|\\n)/, '').trim()).filter((line) => line && line !== 'n.')
   if (!translations.some((line) => line.includes('苹果'))) translations.unshift('n. 苹果')
-  return { ...entry, meaning, translations, usageNotes: [appleUsageNote] }
+  return { ...entry, translations, usageNotes: [appleUsageNote] }
 }
 const starterDate = new Date('2026-10-02T00:00:00Z').getTime()
 function starter(term: string, meaning: string, parts: string[], uk: string, us: string, example: string, forms: Form[] = []): VocabEntry {
   return {
-    term, meaning, translations: [meaning], parts,
+    term, translations: [meaning], parts,
     uk: { ipa: uk, audio: '' }, us: { ipa: us, audio: '' }, forms,
     examples: [{ text: example, author: '', url: '' }], sourceUrl: '', addedAt: starterDate,
   }
@@ -54,7 +55,7 @@ const starterEntries: VocabEntry[] = [
 export function loadEntries(): VocabEntry[] {
   try {
     const parsed: unknown = readJson(storageKey) ?? []
-    const saved = Array.isArray(parsed) ? parsed.filter((item): item is VocabEntry => item && typeof item === 'object' && typeof item.term === 'string' && typeof item.meaning === 'string' && Array.isArray(item.parts)).map(enrichEntry) : []
+    const saved = Array.isArray(parsed) ? parsed.filter((item): item is VocabEntry => item && typeof item === 'object' && typeof item.term === 'string' && (Array.isArray(item.translations) || typeof item.meaning === 'string') && Array.isArray(item.parts)).map(enrichEntry) : []
     if (readJson(starterSeedKey)) {
       return saved
     }

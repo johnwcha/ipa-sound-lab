@@ -1,7 +1,7 @@
 export type Accent = 'uk' | 'us'
 export type Form = { label: string; value: string }
 export type VocabEntry = {
-  term: string; meaning: string; translations: string[]; parts: string[]
+  term: string; translations: string[]; parts: string[]
   uk: { ipa: string; audio: string }; us: { ipa: string; audio: string }
   forms: Form[]; examples: { text: string; author: string; url: string; partOfSpeech?: string }[]
   usageNotes?: { label: string; meaning: string; example: string; exampleMeaning: string; sourceUrl: string }[]
@@ -23,6 +23,13 @@ export const normalizeTerm = (term: string) => term.trim().replace(/\s+/g, ' ').
 export const termId = (term: string) => encodeURIComponent(normalizeTerm(term)).replace(/\./g, '%2E')
 export const historyId = (id: string) => encodeURIComponent(id).replace(/\./g, '%2E')
 export const newId = () => crypto.randomUUID()
+
+// Accept old summaries only at the compatibility boundary. Never carry them
+// into application state or new writes; translations are the source of truth.
+export function canonicalEntry(entry: VocabEntry & { meaning?: string }): VocabEntry {
+  const { meaning, ...rest } = entry
+  return { ...rest, translations: entry.translations?.length ? entry.translations : meaning ? [meaning] : [] }
+}
 
 export function deriveProgress(imports: ImportRecord[], rounds: QuizRound[]): Progress {
   const result: Progress = { ...emptyProgress, missed: [] }
@@ -62,7 +69,7 @@ const text = (value: unknown, max = 4000): value is string => typeof value === '
 const texts = (value: unknown, max = 1000): value is string[] => Array.isArray(value) && value.length <= max && value.every(item => text(item))
 const validId = (value: unknown): value is string => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,200}$/.test(value)
 export function validEntry(value: unknown): value is VocabEntry {
-  if (!object(value) || !text(value.term, 56) || !/^[a-z][a-z '-]*[a-z]$|^[a-z]$/.test(value.term) || normalizeTerm(value.term) !== value.term || !text(value.meaning) || !texts(value.parts, 30) || !texts(value.translations, 100) || !number(value.addedAt) || !text(value.sourceUrl)) return false
+  if (!object(value) || !text(value.term, 56) || !/^[a-z][a-z '-]*[a-z]$|^[a-z]$/.test(value.term) || normalizeTerm(value.term) !== value.term || (value.meaning !== undefined && !text(value.meaning)) || !texts(value.parts, 30) || !texts(value.translations, 100) || !number(value.addedAt) || !text(value.sourceUrl)) return false
   if (!object(value.uk) || !object(value.us) || ![value.uk, value.us].every(sound => text(sound.ipa, 500) && text(sound.audio))) return false
   if (!Array.isArray(value.forms) || value.forms.length > 100 || !value.forms.every(form => object(form) && text(form.label) && text(form.value))) return false
   if (!Array.isArray(value.examples) || value.examples.length > 100 || !value.examples.every(example => object(example) && text(example.text) && text(example.author) && text(example.url) && (example.partOfSpeech === undefined || text(example.partOfSpeech, 30)))) return false
@@ -91,5 +98,5 @@ export function parseRecovery(value: unknown): PersonalData {
   const parsed = data as unknown as PersonalData
   for (const rows of [parsed.rounds, parsed.sessions, parsed.imports]) if (new Set(rows.map(row => row.id)).size !== rows.length) throw new Error('备份含有重复记录。')
   if (new Set(parsed.vocabulary.map(row => termId(row.entry.term))).size !== parsed.vocabulary.length) throw new Error('备份含有重复词条。')
-  return parsed
+  return { ...parsed, vocabulary: parsed.vocabulary.map(record => ({ ...record, entry: canonicalEntry(record.entry) })) }
 }

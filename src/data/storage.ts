@@ -1,4 +1,4 @@
-import { emptyData, emptyProgress, normalizeTerm, parseRecovery, validEntry, validProgress, validSession } from './model'
+import { canonicalEntry, emptyData, emptyProgress, normalizeTerm, parseRecovery, validEntry, validProgress, validSession } from './model'
 import type { ActiveSession, PersonalData, VocabEntry } from './model'
 
 export function readJson(key: string): unknown {
@@ -22,7 +22,7 @@ export function loadGuest(seed: () => VocabEntry[]): PersonalData {
     const session = { id: active.id ?? `recovered-${active.startedAt}`, startedAt: active.startedAt, endedAt: Math.max(active.startedAt + durationMs, active.lastTickAt ?? 0), durationMs, reviewedTerms: active.reviewedTerms ?? [] }
     if (durationMs >= 5000 && validSession(session) && !sessions.some(item => item.id === session.id)) sessions.push(session)
   }
-  const entries = seed().map(entry => ({ ...entry, term: normalizeTerm(entry.term) })).filter(validEntry)
+  const entries = seed().map(entry => ({ ...canonicalEntry(entry), term: normalizeTerm(entry.term) })).filter(validEntry)
   const result: PersonalData = { ...emptyData(), vocabulary: entries.map(entry => ({ entry, deleted: false, updatedAt: entry.addedAt })), sessions, imports: [{ id: 'legacy-browser-v1', baseline: validProgress(progress) ? progress : { ...emptyProgress }, completedAt: 0 }] }
   writeJson(guestKey, result)
   return result

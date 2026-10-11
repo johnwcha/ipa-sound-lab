@@ -1,4 +1,4 @@
-import { emptyData, mergePersonalData, validRecord, validRound, validSession } from './model'
+import { canonicalEntry, emptyData, mergePersonalData, validRecord, validRound, validSession } from './model'
 import type { PersonalData, QuizRound, StudySession, VocabularyRecord } from './model'
 import { readJson, writeJson } from './storage'
 
@@ -10,7 +10,7 @@ export function readOutbox(uid: string): Mutation[] {
   return rows.filter((row): row is Mutation => {
     if (!row || typeof row.id !== 'string' || typeof row.documentId !== 'string' || row.documentId.includes('/')) return false
     return row.collection === 'vocabulary' ? validRecord(row.value) : row.collection === 'quizRounds' ? validRound(row.value) : row.collection === 'studySessions' && validSession(row.value)
-  })
+  }).map(row => row.collection === 'vocabulary' ? { ...row, value: { ...(row.value as VocabularyRecord), entry: canonicalEntry((row.value as VocabularyRecord).entry) } } : row)
 }
 export function journal(uid: string, mutation: Mutation) {
   writeJson(key(uid), [...readOutbox(uid).filter(row => row.collection !== mutation.collection || row.documentId !== mutation.documentId), mutation])

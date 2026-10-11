@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { deriveProgress, emptyData, emptyProgress, mergePersonalData, normalizeTerm, parseRecovery, termId } from '../src/data/model'
 import type { ImportRecord, QuizRound, VocabEntry } from '../src/data/model'
 
-export const word: VocabEntry = { term: 'apple', meaning: '苹果', translations: ['苹果'], parts: ['noun'], uk: { ipa: '/a/', audio: '' }, us: { ipa: '/a/', audio: '' }, forms: [], examples: [], sourceUrl: '', addedAt: 1 }
+export const word: VocabEntry = { term: 'apple', translations: ['苹果'], parts: ['noun'], uk: { ipa: '/a/', audio: '' }, us: { ipa: '/a/', audio: '' }, forms: [], examples: [], sourceUrl: '', addedAt: 1 }
 const baseline = (id: string, rounds: number, missed: string[] = []): ImportRecord => ({ id, baseline: { choiceWins: 2, mixedWins: 0, rounds, missed }, completedAt: 0 })
 const round = (id: string, correct: boolean, completedAt = 1): QuizRound => ({ id, mode: 'mixed', score: correct ? 1 : 0, total: 1, completedAt, outcomes: [{ term: 'apple', correct }] })
 
@@ -15,10 +15,10 @@ describe('migration and progress', () => {
   })
   it('preserves current vocabulary and tombstones on repeated import', () => {
     const current = { ...emptyData(), vocabulary: [{ entry: word, deleted: true, updatedAt: 5 }] }
-    const source = { ...emptyData(), vocabulary: [{ entry: { ...word, meaning: 'changed' }, deleted: false, updatedAt: 10 }], rounds: [round('r1', true)] }
+    const source = { ...emptyData(), vocabulary: [{ entry: { ...word, translations: ['changed'] }, deleted: false, updatedAt: 10 }], rounds: [round('r1', true)] }
     const once = mergePersonalData(current, source)
     expect(once.vocabulary[0].deleted).toBe(true)
-    expect(once.vocabulary[0].entry.meaning).toBe('苹果')
+    expect(once.vocabulary[0].entry.translations).toEqual(['苹果'])
     expect(mergePersonalData(once, source)).toEqual(once)
   })
   it('takes maximum legacy counters and deduplicates actual rounds', () => {

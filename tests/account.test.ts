@@ -28,7 +28,7 @@ vi.mock('firebase/firestore', () => ({
   runTransaction: vi.fn().mockImplementation(async (_database: unknown, callback: (transaction: unknown) => Promise<void>) => callback({ get: async () => ({ exists: () => false }), set: (_target: unknown, value: unknown) => mocks.setDoc(_target, value) })),
 }))
 vi.mock('../src/data/cloudImport', () => ({ importCloudData: mocks.importData }))
-const word = { term: 'apple', meaning: '苹果', translations: ['苹果'], parts: ['noun'], uk: { ipa: '', audio: '' }, us: { ipa: '', audio: '' }, forms: [], examples: [], sourceUrl: '', addedAt: 1 }
+const word = { term: 'apple', translations: ['苹果'], parts: ['noun'], uk: { ipa: '', audio: '' }, us: { ipa: '', audio: '' }, forms: [], examples: [], sourceUrl: '', addedAt: 1 }
 const seed = () => [word]
 const session = { id: 's1', startedAt: 1, endedAt: 6001, durationMs: 6000, reviewedTerms: ['apple'] }
 async function signIn(uid = 'alice') {

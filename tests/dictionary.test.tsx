@@ -1,16 +1,27 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
-import { dictionaryExamples, entryParts, exampleGroups, meaningGroups, parseTranslations } from '../src/data/dictionary'
+import { dictionaryExamples, entryParts, exampleGroups, meaningGroups, meaningSummary, parseTranslations } from '../src/data/dictionary'
 import { WordExamples, WordMeanings } from '../src/WordDefinitions'
 import type { VocabEntry } from '../src/data/model'
-import { validEntry } from '../src/data/model'
+import { canonicalEntry, emptyData, parseRecovery, validEntry } from '../src/data/model'
 
 afterEach(cleanup)
 const raw = 'vt. 剽窃；偷偷地做；偷窃；vi. 窃取；偷偷地行动；[棒球]偷垒；n. [口]偷窃；便宜货；偷垒；[篮球]断球'
-const entry: VocabEntry = { term: 'steal', meaning: '偷窃', parts: ['verb', 'noun'], translations: [raw], uk: { ipa: '', audio: '' }, us: { ipa: '', audio: '' }, forms: [], examples: [], sourceUrl: '', addedAt: 1 }
+const entry: VocabEntry = { term: 'steal', parts: ['verb', 'noun'], translations: [raw], uk: { ipa: '', audio: '' }, us: { ipa: '', audio: '' }, forms: [], examples: [], sourceUrl: '', addedAt: 1 }
 
 describe('dictionary meanings and examples', () => {
+  it('derives summaries from translations and strips stale summaries from old records and backups', () => {
+    const old = { ...entry, meaning: 'stale vi. n. text' }
+    expect(meaningSummary(old)).toBe('动词：剽窃；偷偷地做；偷窃；窃取；偷偷地行动；[棒球]偷垒 ｜ 名词：[口]偷窃；便宜货；偷垒；[篮球]断球')
+    const canonical = canonicalEntry(old)
+    expect(canonical).not.toHaveProperty('meaning')
+    expect(meaningSummary(canonical)).toBe(meaningSummary(old))
+    expect(meaningSummary({ ...canonical, translations: ['n. 新释义'] })).toBe('名词：新释义')
+    const imported = parseRecovery({ format: 'vocab-notebook', version: 1, data: { ...emptyData(), vocabulary: [{ entry: old, deleted: false, updatedAt: 1 }] } })
+    expect(imported.vocabulary[0].entry).not.toHaveProperty('meaning')
+    expect(canonicalEntry({ ...old, translations: [] }).translations).toEqual(['stale vi. n. text'])
+  })
   it('parses inline steal meanings into noun and verb, retaining vt / vi and register notes', () => {
     expect(meaningGroups([raw])).toEqual([
       { part: 'verb', senses: [{ label: '及物动词 vt.', text: '剽窃；偷偷地做；偷窃' }, { label: '不及物动词 vi.', text: '窃取；偷偷地行动；[棒球]偷垒' }] },

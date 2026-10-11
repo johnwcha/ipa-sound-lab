@@ -7,7 +7,7 @@ import { importCloudData } from '../src/data/cloudImport'
 import { deriveProgress, emptyData, emptyProgress } from '../src/data/model'
 import type { QuizRound } from '../src/data/model'
 
-const entry = { term: 'apple', meaning: '苹果', translations: ['苹果'], parts: ['noun'], uk: { ipa: '', audio: '' }, us: { ipa: '', audio: '' }, forms: [], examples: [], sourceUrl: '', addedAt: 1 }
+const entry = { term: 'apple', translations: ['苹果'], parts: ['noun'], uk: { ipa: '', audio: '' }, us: { ipa: '', audio: '' }, forms: [], examples: [], sourceUrl: '', addedAt: 1 }
 const vocabulary = { entry, deleted: false, updatedAt: 1 }
 describe.skipIf(!process.env.FIRESTORE_EMULATOR_HOST)('Firestore security and resumable import', () => {
   let environment: RulesTestEnvironment
